@@ -1,7 +1,7 @@
 #pragma once
 
 #include <SDL3/SDL.h>
-#include <Core/Window.h>
+#include <Engine/Core/Window.h>
 
 namespace Spikey {
 
@@ -9,6 +9,10 @@ namespace Spikey {
 	public:
 		SDLWindow(const WindowDesc& desc);
 		virtual ~SDLWindow() override;
+
+		virtual uint32 GetWidth() const override { return m_Width; }
+		virtual uint32 GetHeight() const override { return m_Height; }
+		virtual const char* GetName() const override { return m_Name; }
 
 		virtual bool IsFocused() const override { return m_Focused; }
 		virtual bool IsOpen() const override { return m_Open; }
@@ -24,6 +28,10 @@ namespace Spikey {
 
 	private:
 		SDL_Window* m_Native;
+		const char* m_Name;
+
+		uint32 m_Width;
+		uint32 m_Height;
 
 		bool m_Focused;
 		bool m_Open;
