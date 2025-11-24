@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Graphics/Texture2D.h>
+#include <Engine/Graphics/TextureCube.h>
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/Mesh.h>
 
@@ -8,18 +9,54 @@
 
 namespace Spikey {
 
-	class RHICommandBuffer : public IRHIResource {
+	enum class EGPUAccess : uint16 {
+		None = 0,
+
+		IndirectArgs = BIT(0),
+		SRVCompute = BIT(1),
+		SRVGraphics = BIT(2),
+		UAVCompute = BIT(3),
+		UAVGraphics = BIT(4),
+		CopySrc = BIT(5),
+		CopyDst = BIT(6),
+		ColorTarget = BIT(7),
+		DepthTarget = BIT(8),
+
+		SRV = SRVCompute | SRVGraphics,
+		UAV = UAVCompute | UAVGraphics
+	};
+	ENUM_FLAGS_OPERATORS(EGPUAccess);
+
+	enum class ERHIQueue : uint8 {
+		Graphics,
+		Compute,
+		Transfer,
+
+		COUNT
+	};
+
+	class IRHICommandList {
 	public:
-		RHICommandBuffer() : m_RHIData(0) {}
-		virtual ~RHICommandBuffer() override = default;
+		virtual ~IRHICommandList() = default;
+		virtual void* GetNative() const = 0;
 
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
+		virtual void MipMapTexture2D(IRHITexture2D* tex, EGPUAccess lastAccess, EGPUAccess newAccess, uint32 numMips) = 0;
+		virtual void CopyTexture(IRHITexture* src, const TextureCopyRegion& srcRegion, IRHITexture* dst, const TextureCopyRegion& dstRegion, Vec2Uint copySize) = 0;
+		virtual void ClearTexture(IRHITexture* tex, const SubresourceRange& range, EGPUAccess access, const Vec4& color) = 0;
+		virtual void CopyFromTextureToCPU(IRHITexture* src, const SubresourceCopyRegion& region, IRHIBuffer* dst) = 0;
+		virtual void BarrierTexture(IRHITexture* texture, const TextureBarrierRegion* regions, uint32 numRegions) = 0;
+		virtual void CopyBuffer(IRHIBuffer* srcBuffer, IRHIBuffer* dstBuffer, uint64 srcOffset, uint64 dstOffset, uint64 size) = 0;
+		virtual void BarrierBuffer(IRHIBuffer* buffer, uint64 size, uint64 offset, EGPUAccess lastAccess, EGPUAccess newAccess) = 0;
+		virtual void FillBuffer(IRHIBuffer* buffer, uint64 size, uint64 offset, uint32 value) = 0;
+		// virtual void BindShader(RHIShader* shader, std::vector<RHIBindingSet*> shaderSets = {}, void* pushData = nullptr) = 0;
+		// virtual void DispatchCompute(uint32 groupCountX, uint32 groupCountY, uint32 groupCountZ) = 0;
 
-		RHIData GetRHIData() const { return m_RHIData; }
 
-	private:
-		RHIData m_RHIData;
+		// TODO
+		virtual void BindTextureSRV() = 0;
+		virtual void BindTextureUAV() = 0;
+		virtual void BindBuffer() = 0;
+		virtual void BindSamplerState() = 0;
 	};
 
 	struct TextureCopyRegion {
@@ -29,26 +66,23 @@ namespace Spikey {
 		Vec3Int Offset;
 	};
 
-	struct SubResourceCopyRegion {
+	struct SubresourceCopyRegion {
 		uint64 DataOffset;
 		uint32 MipLevel;
-		uint32 ArrayLayer;
+		uint32 BaseLayer;
+		uint32 NumLayers;
 	};
 
 	struct TextureBarrierRegion {
-		uint32 BaseMipLevel;
-		uint32 MipCount;
-		uint32 BaseArrayLayer;
-		uint32 LayerCount;
-
-		bool EntireTexture;
+		SubresourceRange Range;
 		EGPUAccess LastAccess;
 		EGPUAccess NewAccess;
+		bool EntireTexture;
 	};
 
 	struct RenderInfo {
-		std::vector<RHITextureView*> ColorTargets;
-		RHITextureView* DepthTarget;
+		std::vector<IRHITextureView*> ColorTargets;
+		IRHITextureView* DepthTarget;
 
 		Vec4* ColorClear;
 		Vec2* DepthClear;
@@ -76,43 +110,30 @@ namespace Spikey {
 	class IRHIDevice {
 	public:
 		virtual ~IRHIDevice() = default;
-
-		virtual RHIData CreateTexture2DRHI(const Texture2DDesc& desc) = 0;
-		virtual void DestroyTexture2DRHI(RHIData data) = 0;
-		virtual void MipMapTexture2D(RHICommandBuffer* cmd, RHITexture2D* tex, EGPUAccess lastAccess, EGPUAccess newAccess, uint32 numMips) = 0;
-
-		virtual RHIData CreateCubeTextureRHI(const TextureCubeDesc& desc) = 0;
-		virtual void DestroyCubeTextureRHI(RHIData data) = 0;
-
-		virtual void CopyTexture(RHICommandBuffer* cmd, IRHITexture* src, const TextureCopyRegion& srcRegion, IRHITexture* dst, const TextureCopyRegion& dstRegion, Vec2Uint copySize) = 0;
-		virtual void ClearTexture(RHICommandBuffer* cmd, IRHITexture* tex, EGPUAccess access, const Vec4& color) = 0;
+		virtual void RunGarbageCollection() = 0;
 
 		virtual void CopyDataToTexture(void* src, uint64 srcOffset, IRHITexture* dst, EGPUAccess lastAccess, EGPUAccess newAccess,
 			const std::vector<SubResourceCopyRegion>& regions, uint64 copySize) = 0;
-		virtual void CopyFromTextureToCPU(RHICommandBuffer* cmd, IRHITexture* src, SubResourceCopyRegion region, RHIBuffer* dst) = 0;
-		virtual void BarrierTexture(RHICommandBuffer* cmd, IRHITexture* texture, const TextureBarrierRegion* regions, uint32 numRegions) = 0;
 
-		virtual RHIData CreateTextureViewRHI(const TextureViewDesc& desc) = 0;
-		virtual void DestroyTextureViewRHI(RHIData data) = 0;
+		virtual Texture2DRHIRef CreateTexture2D(uint32 width, uint32 height, uint32 numMips, ETextureFormat format, ETextureUsage usage) = 0;
+		virtual TextureCubeRHIRef CreateTextureCube(uint32 size, uint32 numMips, ETextureFormat format, ETextureUsage usage) = 0;
+		virtual TextureViewRHIRef CreateTextureView(uint32 baseMip, uint32 numMips, uint32 baseLayer, uint32 numLayers, IRHITexture* tex) = 0;
+		virtual BufferRHIRef CreateBuffer(uint64 size, EBufferUsage usage) = 0;
+		virtual IRHISamplerState* CreateSamplerState(const SamplerStateDesc& desc) = 0;
 
-		virtual RHIData CreateBufferRHI(const BufferDesc& desc) = 0;
-		virtual void DestroyBufferRHI(RHIData data) = 0;
-		virtual void CopyBuffer(RHICommandBuffer* cmd, RHIBuffer* srcBuffer, RHIBuffer* dstBuffer, uint64 srcOffset, uint64 dstOffset, uint64 size) = 0;
-		virtual void* MapBufferMem(RHIBuffer* buffer) = 0;
-		virtual void BarrierBuffer(RHICommandBuffer* cmd, RHIBuffer* buffer, uint64 size, uint64 offset, EGPUAccess lastAccess, EGPUAccess newAccess) = 0;
-		virtual void FillBuffer(RHICommandBuffer* cmd, RHIBuffer* buffer, uint64 size, uint64 offset, uint32 value) = 0;
-		virtual uint64_t GetBufferGPUAddress(RHIBuffer* buffer) = 0;
+		virtual ShaderRHIRef CreateVertexShader(const std::span<uint8>& bytecode) = 0;
+		virtual ShaderRHIRef CreatePixelShader(const std::span<uint8>& bytecode) = 0;
+		virtual ShaderRHIRef CreateComputeShader(const std::span<uint8>& bytecode) = 0;
+		virtual PipelineStateRHIRef CreatePipelineState(const PipelineStateDesc& desc) = 0;
 
-		virtual RHIData CreateBindingSetLayoutRHI(const BindingSetLayoutDesc& desc) = 0;
-		virtual void DestroyBindingSetLayoutRHI(RHIData data) = 0;
+		virtual IRHICommandList* BeginCommandList(EQueueType queue = EQueueType::Graphics) = 0;
+		virtual void SubmitCommandList(IRHICommandList* list) = 0;
+		virtual void WaitCommandList(IRHICommandList* list) = 0;
 
-		virtual RHIData CreateBindingSetRHI(RHIBindingSetLayout* layout) = 0;
-		virtual void DestroyBindingSetRHI(RHIData data) = 0;
-
-		virtual RHIData CreateShaderRHI(const ShaderDesc& desc, const std::vector<uint8>* vertexData, const std::vector<uint8>* pixelData,
-			const std::vector<uint8>* computeData, uint32 pushSize, const std::vector<RHIBindingSetLayout*>& layouts) = 0;
+		/*
+		virtual RHIData CreateShaderRHI(const ShaderDesc& desc, const ShaderData& data, const std::vector<RHIBindingSetLayout*>& layouts) = 0;
 		virtual void DestroyShaderRHI(RHIData data) = 0;
-		virtual void BindShader(RHICommandBuffer* cmd, RHIShader* shader, std::vector<RHIBindingSet*> shaderSets = {}, void* pushData = nullptr) = 0;
+		*/
 
 		virtual RHIData CreateSamplerRHI(const SamplerDesc& desc) = 0;
 		virtual void DestroySamplerRHI(RHIData data) = 0;
@@ -122,7 +143,6 @@ namespace Spikey {
 		virtual void BeginFrameCommandBuffer(RHICommandBuffer* cmd) = 0;
 		virtual void WaitForFrameCommandBuffer(RHICommandBuffer* cmd) = 0;
 		virtual void ImmediateSubmit(std::function<void(RHICommandBuffer*)>&& func) = 0;
-		virtual void DispatchCompute(RHICommandBuffer* cmd, uint32 groupCountX, uint32 groupCountY, uint32 groupCountZ) = 0;
 		virtual void WaitGPUIdle() = 0;
 
 		virtual void BeginRendering(RHICommandBuffer* cmd, const RenderInfo& info) = 0;
@@ -133,40 +153,28 @@ namespace Spikey {
 		virtual void DrawSwapchain(RHICommandBuffer* cmd, uint32 width, uint32 height, ImGuiRTState* guiState = nullptr, RHITexture2D* fillTexture = nullptr) = 0;
 	};
 
-	class FrameRenderer;
+	class ResourcePool {
+	public:
+		static RHIBufferRef GetBuffer(const BufferDesc& desc);
+		static RHITexture2DRef GetTex2D(const Texture2DDesc& desc);
+		static RHITextureViewRef GetTexView(const TextureViewDesc& desc);
 
-	namespace Graphics {
+		static void ReleaseTex2D(IRHITexture2D* tex);
+		static void ReleaseTexView(IRHITextureView* view);
+		static void ReleaseBuffer(IRHIBuffer* buffer);
+	};
 
-		void Init();
-		void Shutdown();
-		void Tick();
+	class Graphics {
+	public:
+		static void Init();
+		static void Shutdown();
+		static void Tick();
+		//void SubmitCommand(std::function<void()>&& command);
+		//void SubmitResourceChange(std::function<void()>&& command);
 
-		IRHIDevice& GetRHI();
-		FrameRenderer& GetFrameRenderer();
-		RHISampler* GetCachedSampler(const SamplerDesc& desc);
-
-		uint32 GetMaterialID();
-		uint32 GetShaderTextureID(RHITextureView* view);
-		uint32 GetShaderSamplerID(RHISampler* sampler);
-
-		void FreeShaderTextureID(uint32 id);
-		void FreeShaderSamplerID(uint32 id);
-		void FreeMaterialID(uint32 id);
-		void UpdateMaterial(uint32 id);
-
-		struct alignas(16) MaterialData {
-
-			float ScalarData[16];
-			uint32 UintData[16];
-			Vec2 Float2Data[16];
-			Vec4 Float4Data[16];
-			uint32 TextureData[16];
-			uint32 SamplerData[16];
-		};
-
-		MaterialData& GetMaterialData(uint32 id);
-		RHIBindingSet* GetMaterialSet();
-		RHIBindingSetLayout* GetMeshDrawLayout();
-		RHIBindingSetLayout* GetMaterialLayout();
-	}
+		static IRHIDevice& GetRHI();
+		static RHIBindingSetLayout* GetMeshDrawLayout();
+		static RHIBindingSetLayout* GetMaterialLayout();
+		static class FrameRenderer& GetRenderer();
+	};
 }

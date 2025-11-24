@@ -80,25 +80,25 @@ namespace Spikey {
 		virtual void BindMouseButtonDelegate(MouseButtonDelegate&& delegate) = 0;
 	};
 
-	namespace Input {
+	class Input {
+	public:
+		static void Init();
+		static void Tick();
 
-		void Init();
-		void Tick();
+		static bool GetKeyDown(EKey key);
+		static bool GetKeyUp(EKey key);
+		static bool GetKeyPressed(EKey key);
+		static bool GetKeyReleased(EKey key);
 
-		bool GetKeyDown(EKey key);
-		bool GetKeyUp(EKey key);
-		bool GetKeyPressed(EKey key);
-		bool GetKeyReleased(EKey key);
+		static bool GetMouseButtonDown(EMouseButton button);
+		static bool GetMouseButtonUp(EMouseButton button);
+		static bool GetMouseButtonPressed(EMouseButton button);
+		static bool GetMouseButtonReleased(EMouseButton button);
 
-		bool GetMouseButtonDown(EMouseButton button);
-		bool GetMouseButtonUp(EMouseButton button);
-		bool GetMouseButtonPressed(EMouseButton button);
-		bool GetMouseButtonReleased(EMouseButton button);
-
-		float32 GetMouseX();
-		float32 GetMouseY();
-		float32 GetMouseDeltaX();
-		float32 GetMouseDeltaY();
-		float32 GetMouseScroll();
+		static float32 GetMouseX();
+		static float32 GetMouseY();
+		static float32 GetMouseDeltaX();
+		static float32 GetMouseDeltaY();
+		static float32 GetMouseScroll();
 	}
 }

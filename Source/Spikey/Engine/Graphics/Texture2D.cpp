@@ -1,9 +1,9 @@
 #include <Engine/Graphics/Texture2D.h>
 #include <Engine/Graphics/FrameRenderer.h>
-#include <Engine/Core/Application.h>
 
 namespace Spikey {
 
+	/*
 	RHITexture2D::RHITexture2D(const Texture2DDesc& desc) : m_Desc(desc) {
 		m_RHIData = 0;
 
@@ -44,25 +44,17 @@ namespace Spikey {
 		Graphics::GetFrameRenderer().EnqueueDeferred([data = m_RHIData]() {
 			Graphics::GetRHI().DestroyTexture2DRHI(data);
 			});
-	}
+	} */
 
 	Texture2D::Texture2D(const Texture2DDesc& desc, UUID id) {
 		m_ID = id;
-		CreateResource(desc);
+		m_RHIResource = Graphics::GetRHI().CreateTexture2D(desc);
 	}
 
-	Texture2D::~Texture2D() {
-		ReleaseResource();
-	}
+	Texture2D::~Texture2D() {}
 
-	void Texture2D::CreateResource(const Texture2DDesc& desc) {
-		m_RHIResource = new RHITexture2D(desc);
-		SafeResourceInit(m_RHIResource);
-	}
-
-	void Texture2D::ReleaseResource() {
-		SafeResourceRelease(m_RHIResource);
-		m_RHIResource = nullptr;
+	TRef<Texture2D> Texture2D::Create(const Texture2DDesc& desc) {
+		return CreateRef<Texture2D>(desc, 0);
 	}
 
 	TRef<Texture2D> Texture2D::Create(BinaryReadStream& stream, UUID id) {
@@ -97,7 +89,7 @@ namespace Spikey {
 		stream.ReadRaw(buff, header.ByteSize);
 
 		TRef<Texture2D> tex = CreateRef<Texture2D>(desc, id);
-		ENQUEUE_RENDER_COMMAND(([rhi = tex->GetResource(), copySize = header.ByteSize, buff]() {
+		Graphics::SubmitCommand([rhi = tex->GetResource(), copySize = header.ByteSize, buff]() {
 			uint64 offset = 0;
 
 			std::vector<SubResourceCopyRegion> regions{};
@@ -113,7 +105,7 @@ namespace Spikey {
 			}
 			Graphics::GetRHI().CopyDataToTexture(buff, 0, rhi, EGPUAccess::None, EGPUAccess::SRV, regions, copySize);
 			delete[] buff;
-			}));
+			});
 
 		return tex;
 	}

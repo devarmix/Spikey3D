@@ -1,108 +1,94 @@
 #include <Engine/Graphics/Mesh.h>
 #include <Engine/Graphics/GraphicsCore.h>
+#include <Engine/Core/Application.h>
+
+void Spikey::CalculateMeshBounds(const std::vector<Vertex>& vertices, AABBBounds& out) {
+	out.LowerBound = vertices[0].Position;
+	out.UpperBound = vertices[0].Position;
+
+	for (int i = 1; i < vertices.size(); i++) {
+		Vec3 pos = Vec3(vertices[i].Position);
+
+		out.LowerBound = glm::min(out.LowerBound, pos);
+		out.UpperBound = glm::max(out.UpperBound, pos);
+	}
+}
 
 namespace Spikey {
 
-	RHIMesh::RHIMesh(const MeshDesc& desc) : m_Desc(desc) {
+    Mesh::Mesh(MeshData&& data, AABBBounds* bounds, UUID id) {
+		m_ID = id;
+		m_SubMeshes = std::move(data.SubMeshes);
+
+		if (bounds) {
+			m_Bounds = *bounds;
+		}
+		else {
+			CalculateMeshBounds(data.Vertices, m_Bounds);
+		}
 
 		BufferDesc bufferDesc{};
 		bufferDesc.UsageFlags = EBufferUsage::Storage | EBufferUsage::CopyDst | EBufferUsage::Addressable;
 		bufferDesc.MemUsage = EBufferMemUsage::GPUOnly;
-		bufferDesc.Size = sizeof(Vertex) * desc.Vertices.size();
+		bufferDesc.Size = sizeof(Vertex) * data.Vertices.size();
 
 		m_VertexBuffer = new RHIBuffer(bufferDesc);
-		bufferDesc.Size = sizeof(uint32) * desc.Indices.size();
+		bufferDesc.Size = sizeof(uint32) * data.Indices.size();
 		m_IndexBuffer = new RHIBuffer(bufferDesc);
 
-		// calculate bounds
-		{
-			m_Bounds.LowerBound = m_Desc.Vertices[0].Position;
-			m_Bounds.UpperBound = m_Desc.Vertices[0].Position;
+		Graphics::SubmitCommand([vb = m_VertexBuffer, ib = m_IndexBuffer, dt = std::move(data)]() {
+			vb->InitRHI();
+			ib->InitRHI();
 
-			for (int i = 1; i < m_Desc.Vertices.size(); i++) {
+			const uint64 vertexBufferSize = sizeof(Vertex) * dt.Vertices.size();
+			const uint64 indexBufferSize = sizeof(uint32) * dt.Indices.size();
 
-				Vec3 pos = Vec3(m_Desc.Vertices[i].Position);
-				m_Bounds.LowerBound = glm::min(m_Bounds.LowerBound, pos);
-				m_Bounds.UpperBound = glm::max(m_Bounds.UpperBound, pos);
-			}
-		}
-	}
+			BufferDesc stagingDesc{};
+			stagingDesc.Size = vertexBufferSize + indexBufferSize;
+			stagingDesc.UsageFlags = EBufferUsage::CopySrc;
+			stagingDesc.MemUsage = EBufferMemUsage::CPUOnly;
 
-	void RHIMesh::InitRHI() {
+			RHIBuffer* staging = new RHIBuffer(stagingDesc);
+			staging->InitRHI();
 
-		m_VertexBuffer->InitRHI();
-		m_IndexBuffer->InitRHI();
+			memcpy(staging->GetMappedData(), dt.Vertices.data(), vertexBufferSize);
+			memcpy((uint8*)staging->GetMappedData() + vertexBufferSize, dt.Indices.data(), indexBufferSize);
 
-		const uint64 vertexBufferSize = sizeof(Vertex) * m_Desc.Vertices.size();
-		const uint64 indexBufferSize = sizeof(uint32) * m_Desc.Indices.size();
+			Graphics::GetRHI().ImmediateSubmit([&](RHICommandBuffer* cmd) {
 
-		BufferDesc stagingDesc{};
-		stagingDesc.Size = vertexBufferSize + indexBufferSize;
-		stagingDesc.UsageFlags = EBufferUsage::CopySrc;
-		stagingDesc.MemUsage = EBufferMemUsage::CPUOnly;
+				Graphics::GetRHI().CopyBuffer(cmd, staging, vb, 0, 0, vertexBufferSize);
+				Graphics::GetRHI().CopyBuffer(cmd, staging, ib, vertexBufferSize, 0, indexBufferSize);
+				});
 
-		RHIBuffer* staging = new RHIBuffer(stagingDesc);
-		staging->InitRHI();
-
-		memcpy(staging->GetMappedData(), m_Desc.Vertices.data(), vertexBufferSize);
-		memcpy((uint8*)staging->GetMappedData() + vertexBufferSize, m_Desc.Indices.data(), indexBufferSize);
-
-		Graphics::GetRHI().ImmediateSubmit([&, this](RHICommandBuffer* cmd) {
-
-			Graphics::GetRHI().CopyBuffer(cmd, staging, m_VertexBuffer, 0, 0, vertexBufferSize);
-			Graphics::GetRHI().CopyBuffer(cmd, staging, m_IndexBuffer, vertexBufferSize, 0, indexBufferSize);
+			staging->ReleaseRHI();
+			delete staging;
 			});
-
-		staging->ReleaseRHI();
-		delete staging;
-
-		if (!m_Desc.NeedCPUData) {
-
-			m_Desc.Vertices.clear();
-			m_Desc.Indices.clear();
-		}
-	}
-
-	void RHIMesh::ReleaseRHI() {
-
-		m_VertexBuffer->ReleaseRHI();
-		delete m_VertexBuffer;
-
-		m_IndexBuffer->ReleaseRHI();
-		delete m_IndexBuffer;
-	}
-
-	Mesh::Mesh(const MeshDesc& desc, UUID id) {
-		m_ID = id;
-		CreateResource(desc);
 	}
 
 	Mesh::~Mesh() {
-		ReleaseResource();
+		SafeResourceRelease(m_VertexBuffer);
+		SafeResourceRelease(m_IndexBuffer);
 	}
 
 	TRef<Mesh> Mesh::Create(BinaryReadStream& stream, UUID id) {
-		MeshDesc desc{};
-
 		char magic[4] = {};
 		stream >> magic;
 
 		if (memcmp(MESH_MAGIC, magic, sizeof(char) * 4) != 0) {
-			ENGINE_ERROR("Mesh asset file is not valid: {}!", (uint64_t)id);
+			ENGINE_ERROR("Mesh asset file is not valid: {}!", (uint64)id);
 			return nullptr;
 		}
 
-		stream >> desc.Vertices >> desc.Indices >> desc.SubMeshes;
-		return CreateRef<Mesh>(desc, id);
+		AABBBounds bounds{};
+		MeshData data{};
+
+		stream >> bounds;
+		stream >> data.Vertices >> data.Indices >> data.SubMeshes;
+
+		return CreateRef<Mesh>(std::move(data), &bounds, id);
 	}
 
-	void Mesh::ReleaseResource() {
-		SafeResourceRelease(m_RHIResource);
-		m_RHIResource = nullptr;
-	}
-
-	void Mesh::CreateResource(const MeshDesc& desc) {
-		m_RHIResource = new RHIMesh(desc);
-		SafeResourceInit(m_RHIResource);
+    TRef<Mesh> Mesh::Create(MeshData&& data, AABBBounds* bounds) {
+		return CreateRef<Mesh>(std::move(data), bounds, 0);
 	}
 }

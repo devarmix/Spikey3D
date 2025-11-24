@@ -18,7 +18,7 @@ set_target_properties(
 )
 
 add_custom_command(TARGET Editor POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy "${OutputDir}/ThirdParty/Bin/SDL.dll" "${CMAKE_BINARY_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E copy "${ThirdPartyDir}/SDL3/Bin/SDL3.dll" "${CMAKE_BINARY_DIR}"
 )
 
 target_include_directories(Editor PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/")

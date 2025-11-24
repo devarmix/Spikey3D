@@ -1,9 +1,9 @@
 #include <Engine/Graphics/TextureCube.h>
 #include <Engine/Graphics/FrameRenderer.h>
-#include <Engine/Core/Application.h>
 
 namespace Spikey {
 
+	/*
 	RHITextureCube::RHITextureCube(const TextureCubeDesc& desc) : m_Desc(desc) {
 		m_RHIData = 0;
 
@@ -44,7 +44,35 @@ namespace Spikey {
 		Graphics::GetFrameRenderer().EnqueueDeferred([data = m_RHIData]() {
 			Graphics::GetRHI().DestroyCubeTextureRHI(data);
 			});
-	}
+	} 
+
+	void RHITextureCube::ReloadData(const TextureCubeDesc& newDesc) {
+		if (!(m_Desc == newDesc)) {
+			{
+				Graphics::GetFrameRenderer().EnqueueDeferred([data = m_RHIData]() {
+					Graphics::GetRHI().DestroyCubeTextureRHI(data);
+					});
+			}
+			m_Desc = newDesc;
+			{
+				m_RHIData = Graphics::GetRHI().CreateCubeTextureRHI(m_Desc);
+
+				if (EnumHasAllFlags(m_Desc.UsageFlags, ETextureUsage::Sampled) && m_Desc.AutoCreateSampler && !m_Desc.Sampler) {
+					m_Desc.Sampler = Graphics::GetCachedSampler(m_Desc.SamplerDesc);
+				}
+			}
+
+			TextureViewDesc viewDesc{};
+			viewDesc.BaseMip = 0;
+			viewDesc.NumMips = newDesc.NumMips;
+			viewDesc.BaseArrayLayer = 0;
+			viewDesc.NumArrayLayers = 6;
+			viewDesc.SourceTexture = this;
+
+			m_TextureView->ReloadData(viewDesc);
+			InitStateTracking(newDesc.NumMips * 6);
+		}
+	} */
 
 
 	TextureCube::TextureCube(const TextureCubeDesc& desc, UUID id) {
@@ -66,13 +94,17 @@ namespace Spikey {
 		m_RHIResource = nullptr;
 	}
 
+	TRef<TextureCube> TextureCube::Create(const TextureCubeDesc& desc) {
+		return CreateRef<TextureCube>(desc, 0);
+	}
+
 	TRef<TextureCube> TextureCube::Create(BinaryReadStream& stream, UUID id) {
 
 		char magic[4] = {};
 		stream >> magic;
 
 		if (memcmp(magic, CUBE_TEXTURE_MAGIC, sizeof(char) * 4) != 0) {
-			ENGINE_ERROR("Corrupted cube texture asset file: {}", (uint64_t)id);
+			ENGINE_ERROR("Corrupted cube texture asset file: {}", (uint64)id);
 			return nullptr;
 		}
 
@@ -97,7 +129,7 @@ namespace Spikey {
 		stream.ReadRaw(buff, header.ByteSize);
 
 		TRef<TextureCube> tex = CreateRef<TextureCube>(desc, id);
-		ENQUEUE_RENDER_COMMAND(([rhi = tex->GetResource(), copySize = header.ByteSize, buff]() {
+		Graphics::SubmitCommand([rhi = tex->GetResource(), copySize = header.ByteSize, buff]() {
 			uint64 offset = 0;
 
 			std::vector<SubResourceCopyRegion> regions{};
@@ -115,7 +147,7 @@ namespace Spikey {
 			}
 			Graphics::GetRHI().CopyDataToTexture(buff, 0, rhi, EGPUAccess::None, EGPUAccess::SRV, regions, copySize);
 			delete[] buff;
-			}));
+			});
 
 		return tex;
 	}

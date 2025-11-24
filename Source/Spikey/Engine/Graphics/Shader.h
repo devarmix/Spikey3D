@@ -11,9 +11,6 @@ namespace Spikey {
 
 		Vertex,
 		Pixel,
-
-		// both vertex and fragment shaders in one file
-		Graphics,
 		Compute
 	};
 
@@ -25,77 +22,95 @@ namespace Spikey {
 		BufferSRV,
 		BufferUAV,
 		ConstantBuffer,
+
 		Sampler
 	};
 
-	struct BindingSetLayoutDesc {
-		struct Binding {
+	constexpr char SHADER_MAGIC[4] = { 'S', 'C', 'S', 'F' };
+	constexpr char MATERIAL_SHADER_MAGIC[4] = { 'S', 'M', 'S', 'F' };
 
-			EShaderResourceType Type;
-			uint32 Count;
-			uint32 Slot;
-		};
+	/*
+	struct ShaderSource {
+		std::vector<uint8> VertexCode;
+		std::vector<uint8> PixelCode;
+		std::vector<uint8> ComputeCode;
+		std::vector<ShaderBinding> Bindings;
 
-		std::vector<Binding> Bindings;
-		//bool UseDescriptorIndexing = false;
+		uint16 SetCount;
+		uint8 PushDataSize;
+
+		friend BinaryReadStream& operator>>(BinaryReadStream& stream, ShaderSource& self) {
+			stream >> self.VertexCode >> self.PixelCode >> self.ComputeCode;
+			stream >> self.Bindings >> self.SetCount >> self.PushDataSize;
+
+			return stream;
+		}
+
+		friend BinaryWriteStream& operator<<(BinaryWriteStream& stream, const ShaderSource& self) {
+			stream << self.VertexCode << self.PixelCode << self.ComputeCode;
+			stream << self.Bindings << self.SetCount << self.PushDataSize;
+
+			return stream;
+		}
 	};
 
-	class RHIBindingSetLayout : public IRHIResource {
+	struct MaterialShaderSource {
+		std::vector<uint8> VertexCode;
+		std::vector<uint8> PixelCode;
+
+		struct {
+			std::vector<std::string> Scalar;
+			std::vector<std::string> Uint;
+			std::vector<std::string> Vec2;
+			std::vector<std::string> Vec4;
+			std::vector<std::string> Texture;
+		} Parameters;
+
+		friend BinaryReadStream& operator>>(BinaryReadStream& stream, MaterialShaderSource& self) {
+			stream >> self.VertexCode >> self.PixelCode;
+			stream >> self.Parameters.Scalar >> self.Parameters.Uint >> self.Parameters.Vec2
+				>> self.Parameters.Vec4 >> self.Parameters.Texture;
+
+			return stream;
+		}
+
+		friend BinaryWriteStream& operator<<(BinaryWriteStream& stream, const MaterialShaderSource& self) {
+			stream << self.VertexCode << self.PixelCode;
+			stream << self.Parameters.Scalar << self.Parameters.Uint << self.Parameters.Vec2
+				<< self.Parameters.Vec4 << self.Parameters.Texture;
+
+			return stream;
+		}
+
+		class MaterialShader : public IAsset {
 	public:
-		RHIBindingSetLayout(const BindingSetLayoutDesc& desc) : m_Desc(desc), m_RHIData(0) {}
-		virtual ~RHIBindingSetLayout() override {}
+		MaterialShader(MaterialShaderSource&& source, UUID id);
+		virtual ~MaterialShader() override;
 
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
-
-		RHIData GetRHIData() const { return m_RHIData; }
-		const BindingSetLayoutDesc& GetDesc() const { return m_Desc; }
+		static TRef<MaterialShader> Create(BinaryReadStream& stream, UUID id);
+		const MaterialShaderSource& GetSource() const { return m_Source; }
 
 	private:
-
-		RHIData m_RHIData;
-		BindingSetLayoutDesc m_Desc;
+		MaterialShaderSource m_Source;
+		std::vector<RHIPipelineState*> m_States;
 	};
+	}; */
 
-	struct BindingSetWriteDesc {
+	/* struct PushData {
+	    uint32 Input;
+		uint32 Output;
+		float Value;
+		float Padding[3];
+		Vec4 OtherValue;
+	} */
 
-		uint32 Slot;
-		uint32 ArrayElement;
-
-		RHITextureView* Texture = nullptr;
-		EGPUAccess TextureAccess;
-
-		RHIBuffer* Buffer = nullptr;
-		uint64 BufferRange;
-		uint64 BufferOffset;
-
-		RHISampler* Sampler = nullptr;
-	};
-
-	class RHIBindingSet : public IRHIResource {
+	class IRHIShader : public IRefCounted {
 	public:
-		RHIBindingSet(RHIBindingSetLayout* layout) : m_Layout(layout), m_RHIData(0) {}
-		virtual ~RHIBindingSet() override {}
-
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
-
-		void AddTextureWrite(uint32 slot, uint32 arrayEl, RHITextureView* view, EGPUAccess access);
-		void AddBufferWrite(uint32 slot, uint32 arrayEl, RHIBuffer* buffer, uint64 range, uint64 offset);
-		void AddSamplerWrite(uint32 slot, uint32 arrayEl, RHISampler* sampler);
-
-		void ClearWrites() { m_Writes.clear(); }
-		const std::vector<BindingSetWriteDesc>& GetWrites() const { return m_Writes; }
-
-		RHIBindingSetLayout* GetLayout() { return m_Layout; }
-		RHIData GetRHIData() const { return m_RHIData; }
-
-	private:
-
-		std::vector<BindingSetWriteDesc> m_Writes;
-		RHIBindingSetLayout* m_Layout;
-		RHIData m_RHIData;
+		IRHIShader() = default;
+		virtual void* GetNative() const = 0;
 	};
+
+	using ShaderRHIRef = TRef<IRHIShader>;
 
 	enum class EFrontFace : uint8 {
 		None = 0,
@@ -104,102 +119,166 @@ namespace Spikey {
 		CounterClockWise
 	};
 
-	struct ShaderDesc {
+	enum class EComparisonFunc : uint8 {
+		Never = 0,
 
-		bool EnableDepthTest = false;
-		bool EnableDepthWrite = false;
-		bool CullBackFaces = false;
-		bool EnableAlphaBlend = false;
-		bool EnableAdditiveBlend = false;
-
-		EFrontFace FrontFace = EFrontFace::ClockWise;
-		EShaderType Type;
-
-		std::string Name;
-		std::vector<ETextureFormat> RenderTargetFormats;
-
-		bool operator==(const ShaderDesc& other) const {
-
-			if (!(Type == other.Type
-				&& Name.size() == other.Name.size()
-				&& RenderTargetFormats.size() == other.RenderTargetFormats.size()
-				&& EnableDepthTest == other.EnableDepthTest
-				&& EnableDepthWrite == other.EnableDepthWrite
-				&& CullBackFaces == other.CullBackFaces
-				&& FrontFace == other.FrontFace))
-				return false;
-
-			for (uint32_t i = 0; i < RenderTargetFormats.size(); i++) {
-				if (RenderTargetFormats[i] != other.RenderTargetFormats[i]) return false;
-			}
-
-			if (Name != other.Name) return false;
-			return true;
-		}
+		Less,
+		Equal,
+		LessOrEqual,
+		Greater,
+		NotEqual,
+		GreaterOrEqual,
+		Always
 	};
 
-	constexpr char SHADER_MAGIC[4] = { 'S', 'C', 'S', 'F' };
+	enum class EStencilOp : uint8 {
+		None = 0,
 
-	class RHIShader : public IRHIResource {
-	public:
-		RHIShader(const ShaderDesc& desc);
-		virtual ~RHIShader() override;
-
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
-
-		EShaderType GetShaderType() const { return m_Desc.Type; }
-		const std::string& GetName() const { return m_Desc.Name; }
-		bool DepthTestEnabled() const { return m_Desc.EnableDepthTest; }
-		bool DepthWriteEnabled() const { return m_Desc.EnableDepthWrite; }
-		bool CullBackFaces() const { return m_Desc.CullBackFaces; }
-		bool AlphaBlendEnabled() const { return m_Desc.EnableAlphaBlend; }
-		bool AdditiveBlendEnabled() const { return m_Desc.EnableAdditiveBlend; }
-
-		const ShaderDesc& GetDesc() const { return m_Desc; }
-
-		RHIData GetRHIData() const { return m_RHIData; }
-		const std::vector<RHIBindingSetLayout*>& GetLayouts() const { return m_Layouts; }
-
-	private:
-
-		RHIData m_RHIData;
-		ShaderDesc m_Desc;
-
-		std::vector<RHIBindingSetLayout*> m_Layouts;
+		Keep,
+		Zero,
+		Replace,
+		IncrementSaturated,
+		DecrementSaturated,
+		Invert,
+		Increment,
+		Decrement
 	};
 
-	class Shader : public IAsset {
+	enum class EPrimitiveTopology : uint8 {
+		None = 0,
+
+		PointList,
+		LineList,
+		LineStrip,
+		TriangleList,
+		TriangleStrip,
+		TriangleFan,
+		TriangleListWithAdjacency,
+		TriangleStripWithAdjacency,
+		PatchList
+	};
+
+	enum class ECullMode : uint8 {
+		None = 0,
+
+		FrontFace,
+		BackFace
+	};
+
+	enum class EBlendOp : uint8 {
+		None = 0,
+
+		Add,
+		Subtract,
+		ReverseSubtract,
+		Min,
+		Max
+	};
+
+	enum class EBlendFactor : uint8 {
+		None = 0,
+
+		Zero,
+		One,
+		SrcColor,
+		OneMinusSrcColor,
+		SrcAlpha,
+		OneMinusSrcAlpha,
+		DstAlpha,
+		OneMinusDstAlpha,
+		DstColor,
+		OneMinusDstColor,
+		SrcAlphaSaturate,
+		ConstantColor,
+		OneMinusConstantColor,
+		Src1Color,
+		OneMinusSrc1Color,
+		Src1Alpha,
+		OneMinusSrc1Alpha
+	};
+
+	enum class EColorMask : uint8 {
+		None = 0,
+
+		R = BIT(0),
+		G = BIT(1),
+		B = BIT(2),
+		A = BIT(3),
+
+		All = R | G | B | A
+	};
+	ENUM_FLAGS_OPERATORS(EColorMask)
+
+	struct PipelineStateDesc {
+
+		IRHIShader* VertexShader = nullptr;
+		IRHIShader* PixelShader = nullptr;
+		IRHIShader* ComputeShader = nullptr;
+
+		uint8 PushDataSize;
+
+		bool DepthEnable;
+		bool DepthWriteEnable;
+		bool DepthClipEnable;
+		EComparisonFunc DepthFunc;
+
+		bool StencilEnable;
+		uint8 StencilReadMask;
+		uint8 StencilWriteMask;
+		EComparisonFunc StencilFunc;
+		EStencilOp StencilFailOp;
+		EStencilOp StencilDepthFailop;
+		EStencilOp StencilPassOp;
+
+		EPrimitiveTopology PrimitiveTopology;
+		ECullMode CullMode;
+		EFrontFace FrontFace;
+
+		struct RenderTarget {
+			ETextureFormat Format;
+
+			bool EnableBlend;
+			EBlendFactor SrcBlend;
+			EBlendFactor DstBlend;
+			EBlendOp BlendOp;
+			EBlendFactor SrcBlendAlpha;
+			EBlendFactor DstBlendAlpha;
+			EBlendOp BlendOpAplha;
+			EColorMask ColorMask;
+		} RenderTargets[8];
+	};
+
+	class IRHIPipelineState : public IRefCounted {
 	public:
-		Shader(const ShaderDesc& desc, UUID id);
-		virtual ~Shader() override;
+		IRHIPipelineState() = default;
+	};
 
-		static TRef<Shader> Create(BinaryReadStream& stream, UUID id);
+	using PipelineStateRHIRef = TRef<IRHIPipelineState>;
 
-		RHIShader* GetResource() { return m_RHIResource; }
-		void ReleaseResource();
-		void CreateResource(const ShaderDesc& desc);
+	class ShaderManager {
+	public:
+		static uint32 GetMaterialID();
+		static uint32 GetShaderTextureID(IRHITextureView* view);
+		static uint32 GetShaderSamplerID(IRHISampler* sampler);
 
-		const std::string& GetName() const { return m_RHIResource->GetName(); }
-		EShaderType GetShaderType() const { return m_RHIResource->GetShaderType(); }
-		bool DepthTestEnabled() const { return m_RHIResource->DepthTestEnabled(); }
-		bool DepthWriteEnabled() const { return m_RHIResource->DepthWriteEnabled(); }
-		bool CullBackFaces() const { return m_RHIResource->CullBackFaces(); }
-		bool AlphaBlendEnabled() const { return m_RHIResource->AlphaBlendEnabled(); }
-		bool AdditiveBlendEnabled() const { return m_RHIResource->AdditiveBlendEnabled(); }
+		//static IRHIShader* LoadDefaultShader(EShader shader);
 
-		struct MaterialData {
-			std::vector<std::string> ScalarParameters;
-			std::vector<std::string> UintParameters;
-			std::vector<std::string> Vec2Parameters;
-			std::vector<std::string> Vec4Parameters;
-			std::vector<std::string> TextureParameters;
+		static void FreeShaderTextureID(uint32 id);
+		static void FreeShaderSamplerID(uint32 id);
+		static void FreeMaterialID(uint32 id);
+		static void UpdateMaterial(uint32 id);
+		//void UpdateTexture(uint32 id, RHITextureView* view);
+
+		struct alignas(16) MaterialData {
+
+			float ScalarData[16];
+			uint32 UintData[16];
+			Vec2 Float2Data[16];
+			Vec4 Float4Data[16];
+			uint32 TextureData[16];
+			uint32 SamplerData[16];
 		};
 
-		const MaterialData& GetMaterialData() const { return m_MaterialData; }
-
-	private:
-		RHIShader* m_RHIResource;
-		MaterialData m_MaterialData;
+		static MaterialData& GetMaterialData(uint32 id);
 	};
 }

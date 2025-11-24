@@ -5,31 +5,21 @@
 
 namespace Spikey {
 
-	struct TextureCubeDesc {
-
-		uint32 Size;
-		uint32 NumMips = 1;
-
-		ETextureFormat Format;
-		ETextureUsage UsageFlags;
-		bool AutoCreateSampler = true;
-
-		SamplerDesc SamplerDesc;
-		RHISampler* Sampler = nullptr;
-
-		bool operator==(const TextureCubeDesc& other) const {
-
-			if (!(Size == other.Size
-				&& NumMips == other.NumMips
-				&& Format == other.Format
-				&& UsageFlags == other.UsageFlags)) return false;
-
-			if (AutoCreateSampler) {
-				if (!other.AutoCreateSampler || SamplerDesc != other.SamplerDesc) return false;
-			}
-
-			return true;
+	class IRHITextureCube : public IRHITexture {
+	public:
+		IRHITextureCube(uint32 size, uint32 numMips, ETextureFormat format, ETextureUsage usage)
+			: IRHITexture(numMips, numMips * 6, format, usage), m_Size(size)
+		{
 		}
+
+		uint32 GetSize() const { return m_Size; }
+
+		virtual Vec3Uint GetSizeXYZ() const override { return Vec3Uint(m_Size, m_Size, 1); }
+		virtual IRHITextureCube* GetTextureCube() override { return this; }
+		virtual uint32 GetNumLayers() const override { return 6; }
+
+	private:
+		uint32 m_Size;
 	};
 
 	constexpr char CUBE_TEXTURE_MAGIC[4] = { 'S', 'E', 'C', 'T' };
@@ -41,7 +31,7 @@ namespace Spikey {
 
 		ETextureFormat Format;
 
-		ESamplerFilter Filter    : 2;
+		ESamplerFilter Filter : 2;
 		ESamplerAddress AddressU : 2;
 		ESamplerAddress AddressV : 2;
 		ESamplerAddress AddressW : 2;
@@ -49,46 +39,23 @@ namespace Spikey {
 		uint8 _Padding[6];
 	};
 
-	class RHITextureCube : public IRHITexture {
-	public:
-		RHITextureCube(const TextureCubeDesc& desc);
-		virtual ~RHITextureCube() override {}
-
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
-		virtual void ReleaseRHIImmediate() override;
-
-		virtual ETextureFormat GetFormat() const override { return m_Desc.Format; }
-		virtual ETextureUsage GetUsage() const override { return m_Desc.UsageFlags; }
-		virtual Vec3Uint GetSizeXYZ() const override { return Vec3(m_Desc.Size, m_Desc.Size, 1); }
-		virtual uint32_t GetNumMips() const override { return m_Desc.NumMips; }
-		virtual uint32 GetNumArrayLayers() const override { return 6; }
-		virtual RHISampler* GetSampler() const override { return m_Desc.Sampler; }
-		virtual RHITextureCube* GetTextureCube() override { return this; }
-
-		const TextureCubeDesc& GetDesc() { return m_Desc; }
-
-	private:
-		TextureCubeDesc m_Desc;
-	};
-
 	class TextureCube : public IAsset {
 	public:
-		TextureCube(const TextureCubeDesc& desc, UUID id);
+		TextureCube(uint32 size, uint32 numMips, ETextureFormat format, ETextureUsage usage, UUID id);
 		virtual ~TextureCube() override;
 
 		static TRef<TextureCube> Create(BinaryReadStream& stream, UUID id);
+		static TRef<TextureCube> Create(uint32 size, uint32 numMips, ETextureFormat format, ETextureUsage usage);
 
-		RHITextureCube* GetResource() { return m_RHIResource; }
-		void ReleaseResource();
-		void CreateResource(const TextureCubeDesc& desc);
+		IRHITextureCube* GetResource() { return m_RHIResource; }
 
+		uint32 GetSize() const { return m_RHIResource->GetSize(); }
+		uint32 GetNumMips() const { return m_RHIResource->GetNumMips(); }
 		Vec3Uint GetSizeXYZ() const { return m_RHIResource->GetSizeXYZ(); }
 		ETextureFormat GetFormat() const { return m_RHIResource->GetFormat(); }
-		uint32_t GetNumMips() const { return m_RHIResource->GetNumMips(); }
 		bool IsMipmapped() const { return m_RHIResource->IsMipmaped(); }
 
 	private:
-		RHITextureCube* m_RHIResource;
+		TextureCubeRHIRef m_RHIResource;
 	};
 }

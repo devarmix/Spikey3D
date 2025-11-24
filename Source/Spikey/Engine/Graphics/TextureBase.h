@@ -1,9 +1,20 @@
 #pragma once
 
-#include <Engine/Graphics/Resource.h>
-#include <Engine/Utils/MathUtils.h>
+#include <Engine/Core/RefCounted.h>
+#include <Engine/Core/Math.h>
 
 namespace Spikey {
+
+	// forward defines
+	class IRHITextureView;
+	class IRHITexture;
+	class IRHITexture2D;
+	class IRHITextureCube;
+
+	using TextureViewRHIRef = TRef<IRHITextureView>;
+	using Texture2DRHIRef = TRef<IRHITexture2D>;
+	using TextureCubeRHIRef = TRef<IRHITextureCube>;
+	using TextureRHIRef = TRef<IRHITexture>;
 
 	enum class ETextureFormat : uint8 {
 		None = 0,
@@ -26,121 +37,106 @@ namespace Spikey {
 		R8U
 	};
 
-	// for compressed formats will return size of single block
+	// for compressed formats will return size of a single block
 	uint32 TextureTexelSize(ETextureFormat format);
 	uint32 NumTextureMips(uint32 width, uint32 height);
+	bool IsTextureCompressed(ETextureFormat format);
 
 	// for compressed formats will return the x and y number of blocks
 	Vec2Uint TextureMipExtents(ETextureFormat format, uint32 texW, uint32 texH, uint32 mip);
+	Vec2Uint TextureMipExtents(uint32 texW, uint32 texH, uint32 mip);
 	uint64 MipSizeInBytes(ETextureFormat format, uint32 texW, uint32 texH, uint32 mip);
 	uint64 TextureSizeInBytes(ETextureFormat format, uint32 width, uint32 height, uint32 numMips);
 
 	enum class ETextureUsage : uint8 {
 		None = 0,
 
-		Sampled = BIT(0),
-		CopySrc = BIT(1),
-		CopyDst = BIT(2),
-		Storage = BIT(3),
+		Sampled     = BIT(0),
+		CopySrc     = BIT(1),
+		CopyDst     = BIT(2),
+		Storage     = BIT(3),
 		ColorTarget = BIT(4),
 		DepthTarget = BIT(5)
 	};
 	ENUM_FLAGS_OPERATORS(ETextureUsage);
 
-	class RHITextureView;
-	class RHISampler;
-	class RHITexture2D;
-	class RHITextureCube;
-	class RHICommandBuffer;
-
-	struct TextureState {
-		void SetResourceState(EGPUAccess newAccess);
-		void SetSubresourceState(uint32 index, EGPUAccess newAccess);
-
-		std::vector<EGPUAccess> SubresourceAccess;
-		EGPUAccess Access;
-
-		bool AllSubresourcesSame;
-	};
-
-	class IRHITexture : public IRHIResource {
-	public:
-		virtual ETextureFormat GetFormat() const = 0;
-		virtual ETextureUsage GetUsage() const = 0;
-		virtual Vec3Uint GetSizeXYZ() const = 0;
-		virtual uint32 GetNumMips() const = 0;
-		virtual uint32 GetNumArrayLayers() const = 0;
-		virtual RHISampler* GetSampler() const = 0;
-
-		// dynamic cast methods
-		virtual RHITexture2D* GetTexture2D() { return nullptr; }
-		virtual RHITextureCube* GetTextureCube() { return nullptr; }
-
-		bool IsMipmaped() const { return GetNumMips() > 1; }
-
-		RHIData GetRHIData() const { return m_RHIData; }
-		RHITextureView* GetView() const { return m_TextureView; }
-
-		void Barrier(RHICommandBuffer* cmd, uint32 baseMip, uint32 numMips, uint32 baseLayer, uint32 numLayers, EGPUAccess newAccess);
-		void Barrier(RHICommandBuffer* cmd, EGPUAccess newAccess);
-
-	protected:
-		void InitStateTracking(uint32 numSubresources);
-
-	protected:
-		RHIData m_RHIData;
-		RHITextureView* m_TextureView;
-
-	private:
-		TextureState m_State;
-	};
-
-	struct TextureViewDesc {
-
+	struct SubresourceRange {
 		uint32 BaseMip;
 		uint32 NumMips;
-		uint32 BaseArrayLayer;
-		uint32 NumArrayLayers;
+		uint32 BaseLayer;
+		uint32 NumLayers;
 
-		IRHITexture* SourceTexture;
+		static SubresourceRange AllTexture() {
+			SubresourceRange range{};
+			range.BaseMip = 0;
+			range.BaseLayer = 0;
+			range.NumMips = ~0u;
+			range.NumLayers = ~0u;
 
-		bool operator==(const TextureViewDesc& other) const {
-
-			return (BaseMip == other.BaseMip
-				&& BaseArrayLayer == other.BaseArrayLayer
-				&& NumMips == other.NumMips
-				&& NumArrayLayers == other.NumArrayLayers
-				&& SourceTexture == other.SourceTexture);
+			return range;
 		}
 	};
 
-	class RHITextureView : public IRHIResource {
+	class IRHITexture : public IRefCounted {
 	public:
-		RHITextureView(const TextureViewDesc& desc) : m_Desc(desc), m_RHIData(0), m_MaterialIndex(~0u) {}
-		virtual ~RHITextureView() override {}
+		IRHITexture(uint32 numMips, uint32 numSubresources, ETextureFormat format, ETextureUsage usage);
 
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
-		virtual void ReleaseRHIImmediate() override;
+		ETextureFormat GetFormat() const { return m_Format; }
+		uint32 GetNumMips() const { return m_NumMips; }
+		ETextureUsage GetUsage() const { return m_Usage; }
 
-		RHIData GetRHIData() const { return m_RHIData; }
+		virtual Vec3Uint GetSizeXYZ() const = 0;
+		virtual uint32 GetNumLayers() const = 0;
 
-		uint32 GetNumMips() const { return m_Desc.NumMips; }
-		uint32 GetBaseMip() const { return m_Desc.BaseMip; }
-		uint32 GetBaseArrayLayer() const { return m_Desc.BaseArrayLayer; }
-		uint32 GetNumArrayLayers() const { return m_Desc.NumArrayLayers; }
+		// dynamic cast methods
+		virtual IRHITexture2D* GetTexture2D() { return nullptr; }
+		virtual IRHITextureCube* GetTextureCube() { return nullptr; }
+		virtual void* GetNative() const = 0;
 
-		IRHITexture* GetSourceTexture() const { return m_Desc.SourceTexture; }
+		bool IsMipmaped() const { return GetNumMips() > 1; }
+		IRHITextureView* GetView() const { return m_TextureView; }
 
-		const TextureViewDesc& GetDesc() const { return m_Desc; }
-		uint32 GetMaterialIndex();
+		void Barrier(IRHICommandList* cmd, const SubresourceRange& range, EGPUAccess newAccess);
 
 	private:
+		void InitStateTracking(uint32 numSubresources);
 
-		RHIData m_RHIData;
-		TextureViewDesc m_Desc;
+	private:
+		TextureViewRHIRef m_TextureView;
 
-		uint32 m_MaterialIndex;
+		struct TextureState {
+			void SetResourceState(EGPUAccess newAccess);
+			void SetSubresourceState(uint32 index, EGPUAccess newAccess);
+
+			std::vector<EGPUAccess> SubresourceAccess;
+			EGPUAccess Access;
+
+			bool AllSubresourcesSame;
+		} m_State;
+
+		uint32 m_NumMips;
+		ETextureFormat m_Format;
+		ETextureUsage m_Usage;
+	};
+
+	class IRHITextureView : public IRefCounted {
+	public:
+		IRHITextureView(const SubresourceRange& range)
+			: m_Range(range)
+		{
+		}
+
+		uint32 GetNumMips() const { return m_Range.NumMips; }
+		uint32 GetBaseMip() const { return m_Range.BaseMip; }
+		uint32 GetBaseLayer() const { return m_Range.BaseLayer; }
+		uint32 GetNumLayers() const { return m_Range.NumLayers; }
+		
+		// bindless for materials
+		virtual int32 GetMaterialHandle() = 0;
+		virtual void* GetNative() const = 0;
+
+	private:
+		SubresourceRange m_Range;
 	};
 
 	enum class ESamplerFilter : uint8 {
@@ -166,7 +162,7 @@ namespace Spikey {
 		Maximum
 	};
 
-	struct SamplerDesc {
+	struct SamplerStateDesc {
 
 		ESamplerFilter Filter;
 
@@ -181,7 +177,7 @@ namespace Spikey {
 		float MaxLOD = 0.f;
 		float MaxAnisotropy = 0.f;
 
-		bool operator==(const SamplerDesc& other) const {
+		bool operator==(const SamplerStateDesc& other) const {
 
 			return (Filter == other.Filter
 				&& AddressU == other.AddressU
@@ -195,24 +191,8 @@ namespace Spikey {
 		}
 	};
 
-	class RHISampler : public IRHIResource {
+	class IRHISamplerState : public IRefCounted {
 	public:
-		RHISampler(const SamplerDesc& desc) : m_Desc(desc), m_RHIData(0), m_MaterialIndex(~0u) {}
-		virtual ~RHISampler() override {}
-
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
-
-		const SamplerDesc& GetDesc() const { return m_Desc; }
-		RHIData GetRHIData() const { return m_RHIData; }
-
-		uint32 GetMaterialIndex();
-
-	private:
-
-		SamplerDesc m_Desc;
-		RHIData m_RHIData;
-
-		uint32 m_MaterialIndex;
+		IRHISamplerState() = default;
 	};
 }

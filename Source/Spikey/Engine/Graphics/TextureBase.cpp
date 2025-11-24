@@ -70,12 +70,12 @@ namespace Spikey {
 		return mip + (layer * numMips);
 	}
 
-	void TextureState::SetResourceState(EGPUAccess newAccess) {
+	void IRHITexture::TextureState::SetResourceState(EGPUAccess newAccess) {
 		Access = newAccess;
 		AllSubresourcesSame = true;
 	}
 
-	void TextureState::SetSubresourceState(uint32 index, EGPUAccess newAccess) {
+	void IRHITexture::TextureState::SetSubresourceState(uint32 index, EGPUAccess newAccess) {
 		if (AllSubresourcesSame) {
 			for (int32 i = 0; i < SubresourceAccess.size(); i++) {
 				SubresourceAccess[i] = Access;
@@ -87,8 +87,23 @@ namespace Spikey {
 		SubresourceAccess[index] = newAccess;
 	}
 
-	void IRHITexture::Barrier(RHICommandBuffer* cmd, uint32 baseMip, uint32 numMips, uint32 baseLayer, uint32 numLayers, EGPUAccess newAccess) {
-		bool entireTexture = (numMips == GetNumMips() && numLayers == GetNumArrayLayers());
+	IRHITexture::IRHITexture(uint32 numMips, uint32 numSubresources, ETextureFormat format, ETextureUsage usage)
+		: m_NumMips(numMips), m_Format(format), m_Usage(usage)
+	{
+		m_TextureView = Graphics::GetRHI().CreateTextureView(
+			0,
+			numMips,
+			0,
+			GetNumLayers(),
+			this
+		);
+
+		// TODO: maybe make optional
+		InitStateTracking(numSubresources);
+	}
+
+	void IRHITexture::Barrier(IRHICommandList* cmd, uint32 baseMip, uint32 numMips, uint32 baseLayer, uint32 numLayers, EGPUAccess newAccess) {
+		bool entireTexture = (numMips == GetNumMips() && numLayers == GetNumLayers());
 
 		if (entireTexture && m_State.AllSubresourcesSame) {
 			bool needTransiton = (m_State.Access != newAccess) ||
@@ -100,7 +115,7 @@ namespace Spikey {
 				region.LastAccess = m_State.Access;
 				region.NewAccess = newAccess;
 
-				Graphics::GetRHI().BarrierTexture(cmd, this, &region, 1);
+				cmd->BarrierTexture(this, &region, 1);
 				m_State.SetResourceState(newAccess);
 			}
 		}
@@ -131,16 +146,21 @@ namespace Spikey {
 			}
 
 			if (!regions.empty()) {
-				Graphics::GetRHI().BarrierTexture(cmd, this, regions.data(), (uint32)regions.size());
+				cmd->BarrierTexture(this, regions.data(), (uint32)regions.size());
+			}
+
+			if (entireTexture) {
+				m_State.SetResourceState(newAccess);
 			}
 		}
 	}
 
-	void IRHITexture::Barrier(RHICommandBuffer* cmd, EGPUAccess newAccess) {
-		Barrier(cmd, 0, GetNumMips(), 0, GetNumArrayLayers(), newAccess);
+	void IRHITexture::Barrier(IRHICommandList* cmd, EGPUAccess newAccess) {
+		Barrier(cmd, 0, GetNumMips(), 0, GetNumLayers(), newAccess);
 	}
 
 	void IRHITexture::InitStateTracking(uint32 numSubresources) {
+		m_State.SubresourceAccess.clear();
 		m_State.SubresourceAccess.reserve(numSubresources);
 
 		for (uint32 i = 0; i < numSubresources; i++) {
@@ -149,55 +169,5 @@ namespace Spikey {
 
 		m_State.Access = EGPUAccess::None;
 		m_State.AllSubresourcesSame = true;
-	}
-
-	void RHITextureView::InitRHI() {
-		m_RHIData = Graphics::GetRHI().CreateTextureViewRHI(m_Desc);
-	}
-
-	void RHITextureView::ReleaseRHIImmediate() {
-		Graphics::GetRHI().DestroyTextureViewRHI(m_RHIData);
-
-		if (m_MaterialIndex != ~0u) {
-			Graphics::FreeShaderTextureID(m_MaterialIndex);
-		}
-	}
-
-	void RHITextureView::ReleaseRHI() {
-		Graphics::GetFrameRenderer().EnqueueDeferred([data = m_RHIData, matIndex = m_MaterialIndex]() {
-			Graphics::GetRHI().DestroyTextureViewRHI(data);
-
-			if (matIndex != ~0u) {
-				Graphics::FreeShaderTextureID(matIndex);
-			}
-			});
-	}
-
-	uint32 RHITextureView::GetMaterialIndex() {
-		if (m_MaterialIndex == ~0u) {
-			m_MaterialIndex = Graphics::GetShaderTextureID(this);
-		}
-
-		return m_MaterialIndex;
-	}
-
-	void RHISampler::InitRHI() {
-		m_RHIData = Graphics::GetRHI().CreateSamplerRHI(m_Desc);
-	}
-
-	void RHISampler::ReleaseRHI() {
-		Graphics::GetRHI().DestroySamplerRHI(m_RHIData);
-
-		if (m_MaterialIndex != ~0u) {
-			Graphics::FreeShaderSamplerID(m_MaterialIndex);
-		}
-	}
-
-	uint32 RHISampler::GetMaterialIndex() {
-		if (m_MaterialIndex == ~0u) {
-			m_MaterialIndex = Graphics::GetShaderSamplerID(this);
-		}
-
-		return m_MaterialIndex;
 	}
 }

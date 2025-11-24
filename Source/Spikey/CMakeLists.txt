@@ -4,25 +4,19 @@ project(Spikey)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (USE_VULKAN_RHI)
-    set(RHI_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Backend/Vulkan")
-else()
-    set(RHI_MODULE_PATH "")
-endif()
-
-if (USE_SDL_BACKEND)
-    set(WINDOW_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Backend/SDL")
-else()
-    set(WINDOW_MODULE_PATH "")
-endif()
-
 file(GLOB_RECURSE PRJ_SOURCE CONFIGURE_DEPENDS 
     "${CMAKE_CURRENT_SOURCE_DIR}/Engine/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Engine/*.h"
-    "${RHI_MODULE_PATH}/*.cpp"
-    "${RHI_MODULE_PATH}/*.h"
-    "${WINDOW_MODULE_PATH}/*.cpp"
-    "${WINDOW_MODULE_PATH}/*.h"
+
+if (USE_SDL_BACKEND)
+    "${CMAKE_CURRENT_SOURCE_DIR}/Backend/SDL/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Backend/SDL/*.h"
+endif()
+
+if (USE_VULKAN_RHI)
+    "${CMAKE_CURRENT_SOURCE_DIR}/Backend/Vulkan/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Backend/Vulkan/*.h"
+endif()
 )
 
 add_library(Spikey STATIC "${PRJ_SOURCE}")
@@ -40,14 +34,31 @@ target_include_directories(Spikey PUBLIC
     "${ThirdPartyDir}/Spdlog/Include/"
     "${ThirdPartyDir}/ImGui/Include/"
     "${ThirdPartyDir}/Glm/Include/"
+
+    if (USE_VULKAN_RHI)
+        "${VULKAN_SDK_PATH}/Include/"
+        "${ThirdPartyDir}/VulkanMemoryAllocator/Include/"
+    endif()
+
+    if (USE_SDL_BACKEND)
+          "${ThirdPartyDir}/SDL3/Include/"
+    endif()
+
+    if (USE_TRACY_PROFILER)
+        "${ThirdPartyDir}/Tracy/Include/"
+    endif()
 )
 
 if (USE_SDL_BACKEND)
-    target_link_libraries(Spikey PUBLIC SDL3::SDL3)
+    target_link_libraries(Spikey PUBLIC "${ThirdPartyDir}/SDL3/Lib/x64/SDL3.lib")
 endif()
 
 if (USE_TRACY_PROFILER)
-    target_link_libraries(Spikey PUBLIC Tracy::TracyClient)
+    target_link_libraries(Spikey PUBLIC "${ThirdPartyDir}/Tracy/Lib/x64/TracyClient.lib")
+endif()
+
+if (USE_VULKAN_RHI)
+    target_link_libraries(Spikey PUBLIC "${VULKAN_SDK_PATH}/Lib/vulkan-1.lib")
 endif()
 
 target_link_libraries(Spikey PUBLIC ImGui)

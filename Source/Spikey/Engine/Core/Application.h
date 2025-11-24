@@ -40,6 +40,3 @@ namespace Spikey {
 
 	extern IApplication* CreateApplication(int argc, char* argv[]);
 }
-
-#define ENQUEUE_RENDER_COMMAND(task) \
-Spikey::IApplication::Get().GetRenderThread().PushTask(task);

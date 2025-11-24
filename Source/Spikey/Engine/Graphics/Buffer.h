@@ -1,15 +1,7 @@
 #pragma once
-#include <Engine/Graphics/Resource.h>
+#include <Engine/Core/RefCounted.h>
 
 namespace Spikey {
-
-	enum class EBufferMemUsage : uint8 {
-		None = 0,
-
-		CPUToGPU,
-	    CPUOnly,
-		GPUOnly
-	};
 
 	enum class EBufferUsage : uint8 {
 		None = 0,
@@ -19,59 +11,37 @@ namespace Spikey {
 		CopySrc      = BIT(2),
 		CopyDst      = BIT(3),
 		Indirect     = BIT(4),
-		Addressable  = BIT(5),
-		Index        = BIT(6)
+		Mapped       = BIT(5)
 	};
 	ENUM_FLAGS_OPERATORS(EBufferUsage);
 
-	struct BufferDesc {
-
-		uint64 Size;
-		EBufferUsage UsageFlags;
-		EBufferMemUsage MemUsage;
-
-		bool operator==(const BufferDesc& other) const {
-
-			return (Size == other.Size
-				&& MemUsage == other.MemUsage
-				&& UsageFlags == other.UsageFlags);
-		}
-	};
-
-	class RHICommandBuffer;
-
-	class RHIBuffer : public IRHIResource {
+	class IRHIBuffer : public IRefCounted {
 	public:
-		RHIBuffer(const BufferDesc& desc) 
-			: m_Desc(desc), m_RHIData(0), m_MappedData(nullptr), m_GPUAddress(0), m_LastAccess(EGPUAccess::None) 
+		IRHIBuffer(uint64 size, EBufferUsage usage)
+			: m_Size(size), m_UsageFlags(usage), m_LastAccess(EGPUAccess::None)
 		{
 		}
 
-		virtual ~RHIBuffer() override {}
+		uint64 GetSize() const { return m_Size; }
+		EBufferUsage GetUsage() const { return m_UsageFlags; }
 
-		virtual void InitRHI() override;
-		virtual void ReleaseRHI() override;
-		virtual void ReleaseRHIImmediate() override;
+		virtual int32 GetSRVHandle() = 0;
+		virtual int32 GetUAVHandle() = 0;
+		virtual void* GetMappedData() const = 0;
+		virtual void* GetNative() const = 0;
 
-		uint64 GetSize() const { return m_Desc.Size; }
-		EBufferUsage GetUsage() const { return m_Desc.UsageFlags; }
-		EBufferMemUsage GetMemUsage() const { return m_Desc.MemUsage; }
+		void Barrier(IRHICommandList* cmd, uint64 size, uint64 offset, EGPUAccess newAccess) {
+			cmd->BarrierBuffer(this, size, offset, m_LastAccess, newAccess);
+			m_LastAccess = newAccess;
+		}
 
-		RHIData GetRHIData() const { return m_RHIData; }
-		void* GetMappedData() { return m_MappedData; }
-
-		const BufferDesc& GetDesc() { return m_Desc; }
-		uint64_t GetGPUAddress() const { return m_GPUAddress; }
-
-		void Barrier(RHICommandBuffer* cmd, uint64 size, uint64 offset, EGPUAccess newAccess);
-		void Barrier(RHICommandBuffer* cmd, EGPUAccess newAccess);
+		void Barrier(class IRHICommandList* cmd, EGPUAccess newAccess) { Barrier(cmd, m_Size, 0, newAccess); }
 
 	private:
-		void* m_MappedData;
-		RHIData m_RHIData;
-
-		BufferDesc m_Desc;
+		uint64 m_Size;
+		EBufferUsage m_UsageFlags;
 		EGPUAccess m_LastAccess;
-		uint64 m_GPUAddress;
 	};
+
+	using BufferRHIRef = TRef<IRHIBuffer>;
 }
