@@ -215,14 +215,12 @@ namespace Spikey {
 		IRHIShader* PixelShader = nullptr;
 		IRHIShader* ComputeShader = nullptr;
 
-		uint8 PushDataSize;
-
 		bool DepthEnable;
 		bool DepthWriteEnable;
 		bool DepthClipEnable;
 		EComparisonFunc DepthFunc;
 
-		bool StencilEnable;
+		bool  StencilEnable;
 		uint8 StencilReadMask;
 		uint8 StencilWriteMask;
 		EComparisonFunc StencilFunc;
@@ -234,17 +232,19 @@ namespace Spikey {
 		ECullMode CullMode;
 		EFrontFace FrontFace;
 
+		uint8 NumRenderTargets;
+
 		struct RenderTarget {
 			ETextureFormat Format;
 
-			bool EnableBlend;
-			EBlendFactor SrcBlend;
-			EBlendFactor DstBlend;
-			EBlendOp BlendOp;
-			EBlendFactor SrcBlendAlpha;
-			EBlendFactor DstBlendAlpha;
-			EBlendOp BlendOpAplha;
-			EColorMask ColorMask;
+			bool EnableBlend = false;
+			EBlendFactor SrcBlend = EBlendFactor::One;
+			EBlendFactor DstBlend = EBlendFactor::Zero;
+			EBlendOp BlendOp = EBlendOp::Add;
+			EBlendFactor SrcBlendAlpha = EBlendFactor::One;
+			EBlendFactor DstBlendAlpha = EBlendFactor::Zero;
+			EBlendOp BlendOpAplha = EBlendOp::Add;
+			EColorMask ColorMask = EColorMask::All;
 		} RenderTargets[8];
 	};
 

@@ -45,12 +45,14 @@ namespace Spikey {
 		VulkanRHIDevice(IWindow* window, bool validationLayers = true);
 		virtual ~VulkanRHIDevice() override;
 
-		VkInstance GetInstanceHandle() const { return m_Instance; }
-		VkDevice GetDeviceHandle() const { return m_Device; }
-		VmaAllocator GetAllocatorHandle() const { return m_Allocator; }
-		VulkanQueue& GetQueue(ERHIQueue queue) const { return *m_Queues[(size_t)queue]; }
+		VkInstance       GetInstanceHandle() const { return m_Instance; }
+		VkDevice         GetDeviceHandle() const { return m_Device; }
+		VmaAllocator     GetAllocatorHandle() const { return m_Allocator; }
+		VulkanQueue&     GetQueue(ERHIQueue queue) const { return *m_Queues[(size_t)queue]; }
+		VulkanPSOLayout  CreateCachedPSOLayout(const VulkanPSOLayoutHash& hash);
+		VkPipelineCache  GetPipelineCacheHandle() const { return m_PipelineStateCache; }
 
-		const VkPhysicalDeviceLimits& GetLimits() const { return m_Limits; }
+		const VkPhysicalDeviceLimits&     GetLimits() const { return m_Limits; }
 		const VkPhysicalDeviceProperties& GetProperties() const { return m_Properties; }
 
 		struct ResourceDestroyer {
@@ -80,5 +82,7 @@ namespace Spikey {
 
 		std::mutex m_DestructionMutex;
 		std::deque<std::pair<ResourceDestroyer, uint64>> m_DestructionQueue;
+
+		std::unordered_map<VulkanPSOLayoutHash, VkPipelineLayout> m_PSOLayoutCache;
 	};
 }

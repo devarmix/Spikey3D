@@ -37,9 +37,9 @@ namespace Spikey {
 
 	private:
 		VulkanRHIDevice& m_Device;
-		VkCommandPool m_Pool;
-		VkCommandBuffer m_CmdBuffer;
-		uint64 m_SubmitID;
+		VkCommandPool    m_Pool;
+		VkCommandBuffer  m_CmdBuffer;
+		uint64           m_SubmitID;
 	};
 
 	class VulkanBuffer : public IRHIBuffer {
@@ -56,11 +56,11 @@ namespace Spikey {
 
 	private:
 		VulkanRHIDevice& m_Device;
-		VkBuffer m_Buffer;
-		VmaAllocation m_Allocation;
-		int32 m_SRVHandle;
-		int32 m_UAVHandle;
-		void* m_MappedData;
+		VkBuffer         m_Buffer;
+		VmaAllocation    m_Allocation;
+		int32            m_SRVHandle;
+		int32            m_UAVHandle;
+		void*            m_MappedData;
 	};
 
 	class VulkanTexture2D : public IRHITexture2D {
@@ -73,8 +73,8 @@ namespace Spikey {
 
 	private:
 		VulkanRHIDevice& m_Device;
-		VkImage m_Image;
-		VmaAllocation m_Allocation;
+		VkImage          m_Image;
+		VmaAllocation    m_Allocation;
 	};
 
 	class VulkanTextureCube : public IRHITextureCube {
@@ -87,8 +87,8 @@ namespace Spikey {
 
 	private:
 		VulkanRHIDevice& m_Device;
-		VkImage m_Image;
-		VmaAllocation m_Allocation;
+		VkImage          m_Image;
+		VmaAllocation    m_Allocation;
 	};
 
 	class VulkanTextureView : public IRHITextureView {
@@ -103,9 +103,9 @@ namespace Spikey {
 		virtual void* GetNative() const override { return (void*)m_View; }
 	private:
 		VulkanRHIDevice& m_Device;
-		VkImageView m_View;
-		int32 m_SRVHandle;
-		int32 m_UAVHandle;
+		VkImageView      m_View;
+		int32            m_SRVHandle;
+		int32            m_UAVHandle;
 	};
 
 	class VulkanSamplerState : public IRHISamplerState {
@@ -113,30 +113,110 @@ namespace Spikey {
 	private:
 	};
 
-	class VulkanShader : public IRHIShader {
-	public:
-		VulkanShader(const std::span<uint8>& bytecode, VulkanRHIDevice& device);
-		virtual ~VulkanShader() override;
-
-		VkShaderModule GetShaderHandle() const { return m_Module; }
-		virtual void* GetNative() const override { return (void*)m_Module; }
-
-	private:
-		VulkanRHIDevice& m_Device;
-		VkShaderModule m_Module;
-	};
-
 	class VulkanPipelineState : public IRHIPipelineState {
 	public:
 		VulkanPipelineState(const PipelineStateDesc& desc, VulkanRHIDevice& device);
 		virtual ~VulkanPipelineState() override;
 
-		VkPipelineLayout GetLayoutHandle() const { return m_Layout; }
-		VkPipeline GetPipelineHandle() const { return m_Pipeline; }
+		VkPipelineLayout      GetLayoutHandle() const { return m_Layout; }
+		VkPipeline            GetPipelineHandle() const { return m_Pipeline; }
+		VkDescriptorSetLayout GetSetLayoutHandle() const { return m_SetLayout; }
+		VkPushConstantRange   GetPushConstants() const { return m_PushConstants; }
+
+		const std::vector<VkDescriptorSetLayoutBinding>& GetLayoutBindings() const {
+			return m_LayoutBindings; 
+		}
 
 	private:
-		VulkanRHIDevice& m_Device;
-		VkPipelineLayout m_Layout;
-		VkPipeline m_Pipeline;
+		VulkanRHIDevice&                          m_Device;
+		VkPipelineLayout                          m_Layout;
+		VkPipeline                                m_Pipeline;
+		VkDescriptorSetLayout                     m_SetLayout;
+		VkPushConstantRange                       m_PushConstants;
+		std::vector<VkDescriptorSetLayoutBinding> m_LayoutBindings;
+	};
+
+	class VulkanShader : public IRHIShader {
+	public:
+		VulkanShader(const std::span<uint8>& bytecode, VulkanRHIDevice& device);
+		virtual ~VulkanShader() override;
+
+		VkPushConstantRange GetPushConstants() const { return m_PushConstants; }
+		VkShaderModule      GetShaderHandle() const { return m_Module; }
+		virtual void*       GetNative() const override { return (void*)m_Module; }
+
+		const std::vector<VkDescriptorSetLayoutBinding>& GetBindings() const {
+			return m_Bindings;
+		}
+
+	private:
+		VulkanRHIDevice&                          m_Device;
+		VkShaderModule                            m_Module;
+
+		VkPushConstantRange                       m_PushConstants;
+		std::vector<VkDescriptorSetLayoutBinding> m_Bindings;
+	};
+
+	struct VulkanPSOLayout {
+		VkPipelineLayout      Layout;
+		VkDescriptorSetLayout SetLayout;
+	};
+
+	struct VulkanPSOLayoutHash {
+		std::vector<VkDescriptorSetLayoutBinding> Bindings;
+		VkPushConstantRange                       PushConstants;
+		uint64                                    Hash;
+
+		bool operator==(const VulkanPSOLayoutHash& other) const {
+			if (Hash != other.Hash)
+				return false;
+			if (Bindings.size() != other.Bindings.size())
+				return false;
+			if (
+				PushConstants.offset != other.PushConstants.offset ||
+				PushConstants.size != other.PushConstants.size     ||
+				PushConstants.stageFlags != other.PushConstants.stageFlags
+				)
+				return false;
+
+			for (int i = 0; i < Bindings.size(); i++) {
+				const auto& a = Bindings[i];
+				const auto& b = other.Bindings[i];
+
+				if (
+					a.binding != b.binding                 ||
+					a.descriptorCount != b.descriptorCount ||
+					a.descriptorType != b.descriptorType   ||
+					a.stageFlags != b.stageFlags
+					)
+					return false;
+			}
+
+			return true;
+		}
+
+		void ComputeHash() {
+			Hash = 0;
+
+			for (auto& x : Bindings) {
+				Math::HashCombine(Hash, x.binding);
+				Math::HashCombine(Hash, x.descriptorCount);
+				Math::HashCombine(Hash, x.descriptorType);
+				Math::HashCombine(Hash, x.stageFlags);
+			}
+
+			Math::HashCombine(Hash, PushConstants.offset);
+			Math::HashCombine(Hash, PushConstants.size);
+			Math::HashCombine(Hash, PushConstants.stageFlags);
+		}
+	};
+}
+
+namespace std {
+	template<>
+	struct hash<Spikey::VulkanPSOLayoutHash> {
+		constexpr size_t operator()(const Spikey::VulkanPSOLayoutHash& hash) const {
+			return hash.Hash;
+		}
 	};
 }

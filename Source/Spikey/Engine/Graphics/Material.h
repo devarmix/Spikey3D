@@ -3,35 +3,77 @@
 
 namespace Spikey {
 
-	class Material : public IAsset {
+	struct MaterialDesc {
+
+	};
+
+	struct MaterialParameter {
+		enum EType : uint8 {
+			Uint,
+			Float,
+			Vec2,
+			Vec4,
+			Texture
+		};
+
+		union {
+			bool AsBool;
+			int AsInt;
+			uint32 AsUint;
+			float AsFloat;
+			Vec2 AsVec2;
+			Vec4 AsVec4;
+			uint8 AsRaw[16];
+		};
+
+		TRef<Texture2D> AsTexture;
+
+		EType ParameterType;
+		uint8 BindIndex;   // index of binding for texture
+		uint16 BindOffset; // offset in cb
+
+		std::string Name;
+	};
+
+	class IMaterialBase : public IAsset {
 	public:
-		Material(TRef<Shader> shader, UUID id);
-		virtual ~Material() = default;
 
-		static TRef<Material> Create(BinaryReadStream& stream, UUID id);
+		void SetBoolParameter(const std::string_view& name, bool value);
+		bool GetBoolParameter(const std::string_view& name);
 
-		void SetScalar(const std::string_view& name, float value);
-		void SetUint(const std::string_view& name, uint32 value);
-		void SetVec2(const std::string_view& name, const Vec2& value);
-		void SetVec4(const std::string_view& name, const Vec4& value);
-		void SetTextureSRV(const std::string_view& name, TRef<Texture2D> value);
+		// and so on...
 
-		float GetScalar(const std::string_view& name);
-		uint32 GetUint(const std::string_view& name);
-		const Vec2& GetVec2(const std::string_view& name);
-		const Vec4& GetVec4(const std::string_view& name);
-		TRef<Texture2D> GetTexture(const std::string_view& name);
+		virtual IRHIPipelineState* GetPipelineState() const = 0;
+		virtual const MaterialDesc& const GetDesc() = 0;
+		virtual bool IsMaterialInstance() const = 0;
 
-		TRef<Shader> GetShader() const { return m_Shader; }
+		const std::vector<MaterialParameter>& GetParameters() const {
+			return m_Parameters;
+		}
 
 	private:
-		TRef<Shader> m_Shader;
+		std::vector<MaterialParameter> m_Parameters;
+	};
 
-		// first - hash of parameter name
-		std::vector<std::pair<uint64, float>> FloatCache;
-		std::vector<std::pair<uint64, uint32>> UintCache;
-		std::vector<std::pair<uint64, Vec2>> Vec2Cache;
-		std::vector<std::pair<uint64, Vec4>> Vec4Cache;
-		std::vector<std::pair<uint64, TRef<Texture2D>>> TextureCache;
+	class Material : public IMaterialBase {
+	public:
+
+		virtual bool               IsMaterialInstance() const override { return false; }
+		virtual IRHIPipelineState* GetPipelineState() const override { return m_PipelineState; }
+
+
+	private:
+		PipelineStateRHIRef m_PipelineState;
+	};
+
+	class MaterialInstance : public IMaterialBase {
+	public:
+
+	private:
+		void OnBaseChange();
+		void OnBaseParamsChange();
+
+	private:
+		TRef<Material> BaseMaterial;
 	};
 }

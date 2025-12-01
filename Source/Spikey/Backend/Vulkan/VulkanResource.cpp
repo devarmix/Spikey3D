@@ -403,24 +403,71 @@ namespace Spikey {
 	}
 
 	VulkanPipelineState::VulkanPipelineState(const PipelineStateDesc& desc, VulkanRHIDevice& device) 
-		: m_Device(device) 
+		: m_Device(device), m_PushConstants{}
 	{
-		VkPushConstantRange pushRange{};
-		pushRange.offset = 0;
-		pushRange.size = desc.PushDataSize;
-		pushRange.stageFlags = 0;
+		// based of wicked engine pso creation
+		{
+			auto insertShader = [&, this](IRHIShader* shader) {
+				if (!shader)
+					return;
 
-		VkPipelineLayoutCreateInfo layoutInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-		layoutInfo.pushConstantRangeCount = (desc.PushDataSize > 0) ? 1 : 0;
-		layoutInfo.pPushConstantRanges = (desc.PushDataSize > 0) ? &pushRange : nullptr;
-		layoutInfo.setLayoutCount = ????;
-		layoutInfo.pSetLayouts = ????;
+				VulkanShader* vkShader = (VulkanShader*)vkShader;
+				auto& shaderBindings = vkShader->GetBindings();
+				auto  shaderPushConst = vkShader->GetPushConstants();
 
+				for (auto& x : shaderBindings) {
+					bool found = false;
 
-		// compute pipeline
+					for (auto& y : m_LayoutBindings) {
+						if (x.binding == y.binding) {
+							// check for overlapping descriptors
+							assert(x.descriptorCount == y.descriptorCount
+								&& x.descriptorType == y.descriptorType);
+
+							y.stageFlags |= x.stageFlags;
+							found = true;
+							break;
+						}
+					}
+
+					if (!found) {
+						m_LayoutBindings.push_back(x);
+					}
+				}
+
+				if (shaderPushConst.size > 0) {
+					m_PushConstants.size = std::max(m_PushConstants.size, shaderPushConst.size);
+					m_PushConstants.offset = std::min(m_PushConstants.offset, shaderPushConst.offset);
+					m_PushConstants.stageFlags |= shaderPushConst.stageFlags;
+				}
+				};
+
+			insertShader(desc.ComputeShader);
+			insertShader(desc.VertexShader);
+			insertShader(desc.PixelShader);
+		}
+		{
+			VkDescriptorSetLayoutCreateInfo setLayoutInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+			setLayoutInfo.bindingCount = (uint32)m_LayoutBindings.size();
+			setLayoutInfo.pBindings = m_LayoutBindings.data();
+
+			VK_CHECK(vkCreateDescriptorSetLayout(m_Device.GetDeviceHandle(), &setLayoutInfo, nullptr, &m_SetLayout));
+		}
+		{
+			VulkanPSOLayoutHash layoutHash{};
+			for (auto& x : m_LayoutBindings) {
+				layoutHash.Bindings.push_back(x);
+			}
+
+			layoutHash.PushConstants = m_PushConstants;
+			layoutHash.ComputeHash();
+
+			VulkanPSOLayout cachedLayout = m_Device.CreateCachedPSOLayout(layoutHash);
+			m_Layout = cachedLayout.Layout;
+			m_SetLayout = cachedLayout.SetLayout;
+		}
+
 		if (desc.ComputeShader) {
-
-
 
 			VkPipelineShaderStageCreateInfo stageInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 			stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -429,7 +476,10 @@ namespace Spikey {
 
 			VkComputePipelineCreateInfo info{ .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
 			info.stage = stageInfo;
+			info.layout = m_Layout;
 
+			VK_CHECK(vkCreateComputePipelines(m_Device.GetDeviceHandle(), m_Device.GetPipelineCacheHandle(),
+				1, &info, nullptr, &m_Pipeline));
 		}
 		else {
 

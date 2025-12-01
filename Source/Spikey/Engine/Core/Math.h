@@ -66,7 +66,12 @@ namespace Spikey::Math {
 	Vec4 LerpUnclamped(const Vec4& a, const Vec4& b, float32 t);
 	Vec4 MoveTowards(const Vec4& current, const Vec4& target, float32 maxDistanceDelta);
 
-	void HashCombine(uint64& hash1, uint64 hash2);
+	template<typename T>
+	constexpr void HashCombine(uint64& seed, const T& v) {
+		std::hash<T> hasher;
+		seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+	}
+
 	uint32 DivideRoundUp(uint32 a, uint32 b);
 
 	uint32 PackUnsignedVec4ToUint(const Vec4& v);
