@@ -47,19 +47,14 @@ namespace Spikey {
 		VulkanBuffer(uint64 size, EBufferUsage usage, VulkanRHIDevice& device);
 		virtual ~VulkanBuffer() override;
 
-		virtual int32 GetSRVHandle() override;
-		virtual int32 GetUAVHandle() override;
 		virtual void* GetMappedData() const override { return m_MappedData; }
-
-		VkBuffer GetBufferHandle() const { return m_Buffer; }
 		virtual void* GetNative() const override { return (void*)m_Buffer; }
+		VkBuffer      GetBufferHandle() const { return m_Buffer; }
 
 	private:
 		VulkanRHIDevice& m_Device;
 		VkBuffer         m_Buffer;
 		VmaAllocation    m_Allocation;
-		int32            m_SRVHandle;
-		int32            m_UAVHandle;
 		void*            m_MappedData;
 	};
 
@@ -68,7 +63,7 @@ namespace Spikey {
 		VulkanTexture2D(uint32 width, uint32 height, uint32 numMips, ETextureFormat format, ETextureUsage usage, VulkanRHIDevice& device);
 		virtual ~VulkanTexture2D() override;
 
-		VkImage GetImageHandle() const { return m_Image; }
+		VkImage       GetImageHandle() const { return m_Image; }
 		virtual void* GetNative() const override { return (void*)m_Image; }
 
 	private:
@@ -82,7 +77,7 @@ namespace Spikey {
 		VulkanTextureCube(uint32 size, uint32 numMips, ETextureFormat format, ETextureUsage usage, VulkanRHIDevice& device);
 		virtual ~VulkanTextureCube() override;
 
-		VkImage GetImageHandle() const { return m_Image; }
+		VkImage       GetImageHandle() const { return m_Image; }
 		virtual void* GetNative() const override { return (void*)m_Image; }
 
 	private:
@@ -96,22 +91,32 @@ namespace Spikey {
 		VulkanTextureView(const SubresourceRange& range, IRHITexture* tex, VulkanRHIDevice& device);
 		virtual ~VulkanTextureView() override;
 
-		virtual int32 GetSRVHandle() override;
-		virtual int32 GetUAVHandle() override;
-
-		VkImageView GetViewHandle() const { return m_View; }
+		VkImageView   GetViewHandle() const { return m_View; }
 		virtual void* GetNative() const override { return (void*)m_View; }
 	private:
 		VulkanRHIDevice& m_Device;
 		VkImageView      m_View;
-		int32            m_SRVHandle;
-		int32            m_UAVHandle;
 	};
 
 	class VulkanSamplerState : public IRHISamplerState {
 	public:
+		VulkanSamplerState(const SamplerStateDesc& desc, VulkanRHIDevice& device);
+		virtual ~VulkanSamplerState() override;
+
+		VkSampler     GetSamplerHandle() const { return m_Sampler; }
+		virtual void* GetNative() const override { return (void*)m_Sampler; }
+
 	private:
+		VulkanRHIDevice& m_Device;
+		VkSampler        m_Sampler;
 	};
+
+	// to remove overlapping descriptors
+	constexpr uint32 VK_BINDING_SHIFT_B = 0;
+	constexpr uint32 VK_BINDING_SHIFT_T = 1000;
+	constexpr uint32 VK_BINDING_SHIFT_U = 2000;
+	constexpr uint32 VK_BINDING_SHIFT_S = 3000;
+	constexpr uint32 VK_IMMUTABLE_SAMPLER_FIRST_SLOT = 100;
 
 	class VulkanPipelineState : public IRHIPipelineState {
 	public:
@@ -138,23 +143,22 @@ namespace Spikey {
 
 	class VulkanShader : public IRHIShader {
 	public:
-		VulkanShader(const std::span<uint8>& bytecode, VulkanRHIDevice& device);
+		VulkanShader(const std::span<uint8>& bytecode, VkShaderStageFlags stage, VulkanRHIDevice& device);
 		virtual ~VulkanShader() override;
 
 		VkPushConstantRange GetPushConstants() const { return m_PushConstants; }
 		VkShaderModule      GetShaderHandle() const { return m_Module; }
 		virtual void*       GetNative() const override { return (void*)m_Module; }
 
-		const std::vector<VkDescriptorSetLayoutBinding>& GetBindings() const {
-			return m_Bindings;
-		}
+		using BindingsArray = std::vector<VkDescriptorSetLayoutBinding>;
+		const BindingsArray& GetBindings() const { return m_Bindings; }
 
 	private:
-		VulkanRHIDevice&                          m_Device;
-		VkShaderModule                            m_Module;
-
-		VkPushConstantRange                       m_PushConstants;
-		std::vector<VkDescriptorSetLayoutBinding> m_Bindings;
+		VulkanRHIDevice&    m_Device;
+		VkShaderModule      m_Module;
+		
+		VkPushConstantRange m_PushConstants;
+		BindingsArray       m_Bindings;
 	};
 
 	struct VulkanPSOLayout {

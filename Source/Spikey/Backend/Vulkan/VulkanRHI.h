@@ -52,17 +52,15 @@ namespace Spikey {
 		VulkanPSOLayout  CreateCachedPSOLayout(const VulkanPSOLayoutHash& hash);
 		VkPipelineCache  GetPipelineCacheHandle() const { return m_PipelineStateCache; }
 
+		const VkSampler*                  GetImmutableSamplers() const { return m_ImmutableSamplers.data(); }
 		const VkPhysicalDeviceLimits&     GetLimits() const { return m_Limits; }
 		const VkPhysicalDeviceProperties& GetProperties() const { return m_Properties; }
 
 		struct ResourceDestroyer {
-			VkImage Image            = nullptr;
-			VkBuffer Buffer          = nullptr;
-			VmaAllocation Allocation = nullptr;
-			VkImageView View         = nullptr;
-
-			int32 SRVHandle = -1;
-			int32 UAVHandle = -1;
+			VkImage        Image = nullptr;
+			VkImageView    View = nullptr;
+			VkBuffer       Buffer = nullptr;
+			VmaAllocation  Allocation = nullptr;
 		};
 
 		void DestroyResource(const ResourceDestroyer& destroyer);
@@ -84,5 +82,9 @@ namespace Spikey {
 		std::deque<std::pair<ResourceDestroyer, uint64>> m_DestructionQueue;
 
 		std::unordered_map<VulkanPSOLayoutHash, VkPipelineLayout> m_PSOLayoutCache;
+
+		std::mutex m_SamplerCacheLock;
+		std::unordered_map<SamplerStateDesc, SamplerStateRHIRef> m_SamplerCache;
+		std::vector<VkSampler> m_ImmutableSamplers;
 	};
 }

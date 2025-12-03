@@ -10,11 +10,13 @@ namespace Spikey {
 	class IRHITexture;
 	class IRHITexture2D;
 	class IRHITextureCube;
+	class IRHISamplerState;
 
 	using TextureViewRHIRef = TRef<IRHITextureView>;
 	using Texture2DRHIRef = TRef<IRHITexture2D>;
 	using TextureCubeRHIRef = TRef<IRHITextureCube>;
 	using TextureRHIRef = TRef<IRHITexture>;
+	using SamplerStateRHIRef = TRef<IRHISamplerState>;
 
 	enum class ETextureFormat : uint8 {
 		None = 0,
@@ -130,9 +132,7 @@ namespace Spikey {
 		uint32 GetBaseMip() const { return m_Range.BaseMip; }
 		uint32 GetBaseLayer() const { return m_Range.BaseLayer; }
 		uint32 GetNumLayers() const { return m_Range.NumLayers; }
-		
-		// bindless for materials
-		virtual int32 GetMaterialHandle() = 0;
+
 		virtual void* GetNative() const = 0;
 
 	private:
@@ -140,45 +140,37 @@ namespace Spikey {
 	};
 
 	enum class ESamplerFilter : uint8 {
-		None = 0,
-
 		Point,
 		Bilinear,
 	    Trilinear
 	};
 
 	enum class ESamplerAddress : uint8 {
-		None = 0,
-
-		Repeat,
 		Clamp,
+		Wrap,
 		Mirror
 	};
 
 	enum class ESamplerReduction : uint8 {
-		None = 0,
-
+		Standard = 0,
 		Minimum,
 		Maximum
 	};
 
 	struct SamplerStateDesc {
 
-		ESamplerFilter Filter;
+		ESamplerFilter    Filter;
+		ESamplerAddress   AddressU;
+		ESamplerAddress   AddressV;
+		ESamplerAddress   AddressW;
+		ESamplerReduction Reduction;
 
-		ESamplerAddress AddressU;
-		ESamplerAddress AddressV;
-		ESamplerAddress AddressW;
-
-		ESamplerReduction Reduction = ESamplerReduction::None;
-
-		float MipLODBias = 0.f;
-		float MinLOD = 0.f;
-		float MaxLOD = 0.f;
-		float MaxAnisotropy = 0.f;
+		float  MipLODBias = 0.f;
+		float  MinLOD = 0.f;
+		float  MaxLOD = 0.f;
+		uint32 MaxAnisotropy = 0;
 
 		bool operator==(const SamplerStateDesc& other) const {
-
 			return (Filter == other.Filter
 				&& AddressU == other.AddressU
 				&& AddressV == other.AddressV
@@ -194,5 +186,28 @@ namespace Spikey {
 	class IRHISamplerState : public IRefCounted {
 	public:
 		IRHISamplerState() = default;
+		virtual void* GetNative() const = 0;
+	};
+}
+
+namespace std {
+	template<>
+	struct hash<Spikey::SamplerStateDesc> {
+		constexpr size_t operator()(const Spikey::SamplerStateDesc& desc) const {
+			using namespace Spikey;
+
+			uint64 hash = 0;
+			Math::HashCombine(hash, desc.Filter);
+			Math::HashCombine(hash, desc.AddressU);
+			Math::HashCombine(hash, desc.AddressV);
+			Math::HashCombine(hash, desc.AddressW);
+			Math::HashCombine(hash, desc.Reduction);
+			Math::HashCombine(hash, desc.MipLODBias);
+			Math::HashCombine(hash, desc.MinLOD);
+			Math::HashCombine(hash, desc.MaxLOD);
+			Math::HashCombine(hash, desc.MaxAnisotropy);
+
+			return hash;
+		}
 	};
 }

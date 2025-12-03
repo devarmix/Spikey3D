@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(OutputDir "${CMAKE_CURRENT_SOURCE_DIR}/Binaries")
-set(ThirdPartyDir "${CMAKE_CURRENT_SOURCE_DIR}/Source/ThirdParty")
+set(THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Source/ThirdParty")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # taken from https://github.com/TheLartians/GroupSourcesByFolder.cmake/blob/master/CMakeLists.txt
@@ -48,6 +48,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OutputDir}/ThirdParty/Bin")
 option(WITH_VULKAN_RHI "Build engine with Vulkan backend" ON)
 option(WITH_SDL_BACKEND "Build engine with SDL3 backend" ON)
 option(WITH_TRACY_PROFILER "Build engine with tracy profiler integrated" ON)
+option(WITH_EDITOR "Build editor" ON)
 
 if (WIN32)
     message(STATUS "Building for Win32")
@@ -76,6 +77,9 @@ if (WITH_TRACY_PROFILER)
     add_compile_definitions(BUILD_TRACY_PROFILER)
 endif()
 
+if (WITH_EDITOR)
+    add_subdirectory(Source/Editor)
+endif()
+
 add_subdirectory(Source/ThirdParty/ImGui)
-add_subdirectory(Source/Editor)
 add_subdirectory(Source/Spikey)

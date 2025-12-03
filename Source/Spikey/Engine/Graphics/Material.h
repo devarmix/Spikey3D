@@ -8,7 +8,7 @@ namespace Spikey {
 	};
 
 	struct MaterialParameter {
-		enum EType : uint8 {
+		enum class EType : uint8 {
 			Uint,
 			Float,
 			Vec2,

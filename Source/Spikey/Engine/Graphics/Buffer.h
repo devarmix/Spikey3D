@@ -11,7 +11,8 @@ namespace Spikey {
 		CopySrc      = BIT(2),
 		CopyDst      = BIT(3),
 		Indirect     = BIT(4),
-		Mapped       = BIT(5)
+		Index        = BIT(5),
+		Mapped       = BIT(6)
 	};
 	ENUM_FLAGS_OPERATORS(EBufferUsage);
 
@@ -22,11 +23,8 @@ namespace Spikey {
 		{
 		}
 
-		uint64 GetSize() const { return m_Size; }
-		EBufferUsage GetUsage() const { return m_UsageFlags; }
-
-		virtual int32 GetSRVHandle() = 0;
-		virtual int32 GetUAVHandle() = 0;
+		uint64        GetSize() const { return m_Size; }
+		EBufferUsage  GetUsage() const { return m_UsageFlags; }
 		virtual void* GetMappedData() const = 0;
 		virtual void* GetNative() const = 0;
 
