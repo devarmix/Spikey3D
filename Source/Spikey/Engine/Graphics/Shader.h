@@ -44,9 +44,9 @@ namespace Spikey {
 		CounterClockWise
 	};
 
-	enum class EComparisonFunc : uint8 {
-		Never = 0,
-
+	enum class EComparisonFunc : uint8 
+	{
+		Never,
 		Less,
 		Equal,
 		LessOrEqual,
@@ -56,22 +56,20 @@ namespace Spikey {
 		Always
 	};
 
-	enum class EStencilOp : uint8 {
-		None = 0,
-
+	enum class EStencilOp : uint8 
+	{
 		Keep,
 		Zero,
 		Replace,
-		IncrementSaturated,
-		DecrementSaturated,
+		IncrementAndClamp,
+		DecrementAndClamp,
 		Invert,
-		Increment,
-		Decrement
+		IncrementAndWrap,
+		DecrementAndWrap
 	};
 
-	enum class EPrimitiveTopology : uint8 {
-		None = 0,
-
+	enum class EPrimitiveTopology : uint8 
+	{
 		PointList,
 		LineList,
 		LineStrip,
@@ -83,16 +81,15 @@ namespace Spikey {
 		PatchList
 	};
 
-	enum class ECullMode : uint8 {
-		None = 0,
-
+	enum class ECullMode : uint8 
+	{
+		None,
 		FrontFace,
 		BackFace
 	};
 
-	enum class EBlendOp : uint8 {
-		None = 0,
-
+	enum class EBlendOp : uint8 
+	{
 		Add,
 		Subtract,
 		ReverseSubtract,
@@ -100,9 +97,8 @@ namespace Spikey {
 		Max
 	};
 
-	enum class EBlendFactor : uint8 {
-		None = 0,
-
+	enum class EBlendFactor : uint8 
+	{
 		Zero,
 		One,
 		SrcColor,
@@ -180,10 +176,11 @@ namespace Spikey {
 		} RenderTargets[8];
 	};
 
-	class IRHIPipelineState : public IRefCounted {
+	class RHIPipelineState : public IRefCounted 
+	{
 	public:
-		IRHIPipelineState() = default;
+		RHIPipelineState() = default;
 	};
 
-	using PipelineStateRHIRef = TRef<IRHIPipelineState>;
+	using PipelineStateRHIRef = TRef<RHIPipelineState>;
 }

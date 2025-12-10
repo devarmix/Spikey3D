@@ -24,17 +24,17 @@ namespace Spikey {
 
 	// for IRefCounted derived classes
 	template<typename T>
-	class TRef {
+	class TRefCountPtr {
 	public:
-		TRef() : m_Ptr(nullptr) {}
-		TRef(T* ptr) {
+		TRefCountPtr() : m_Ptr(nullptr) {}
+		TRefCountPtr(T* ptr) {
 			m_Ptr = ptr;
 			if (m_Ptr) {
 				m_Ptr->AddRef();
 			}
 		}
 
-		TRef(const TRef& copy) {
+		TRefCountPtr(const TRefCountPtr& copy) {
 			m_Ptr = copy.m_Ptr;
 			if (m_Ptr) {
 				m_Ptr->AddRef();
@@ -42,7 +42,7 @@ namespace Spikey {
 		}
 
 		template<typename CopyT>
-		explicit TRef(const TRef<CopyT>& copy) {
+		explicit TRefCountPtr(const TRefCountPtr<CopyT>& copy) {
 			m_Ptr = static_cast<T*>(copy.Get());
 			if (m_Ptr) {
 				m_Ptr->AddRef();
@@ -50,28 +50,28 @@ namespace Spikey {
 		}
 
 		template<typename CopyT>
-		TRef<CopyT> As() const {
-			return TRef<CopyT>(*this);
+		TRefCountPtr<CopyT> As() const {
+			return TRefCountPtr<CopyT>(*this);
 		}
 
-		TRef(TRef&& move) noexcept {
+		TRefCountPtr(TRefCountPtr&& move) noexcept {
 			m_Ptr = move.m_Ptr;
 			move.m_Ptr = nullptr;
 		}
 
 		template<typename MoveT>
-		explicit TRef(TRef<MoveT>&& move) {
+		explicit TRefCountPtr(TRefCountPtr<MoveT>&& move) {
 			m_Ptr = static_cast<T*>(move.Get());
 			move.m_Ptr = nullptr;
 		}
 
-		~TRef() {
+		~TRefCountPtr() {
 			if (m_Ptr) {
 				m_Ptr->Release();
 			}
 		}
 
-		TRef& operator=(T* ptr) {
+		TRefCountPtr& operator=(T* ptr) {
 			T* old = m_Ptr;
 			m_Ptr = ptr;
 
@@ -85,7 +85,7 @@ namespace Spikey {
 			return *this;
 		}
 
-		TRef& operator=(const TRef& other) {
+		TRefCountPtr& operator=(const TRefCountPtr& other) {
 			T* old = m_Ptr;
 			m_Ptr = other.m_Ptr;
 
@@ -100,7 +100,7 @@ namespace Spikey {
 		}
 
 		template<typename CopyT>
-		TRef& operator=(const TRef<CopyT>& other) {
+		TRefCountPtr& operator=(const TRefCountPtr<CopyT>& other) {
 			T* old = m_Ptr;
 			m_Ptr = (T*)other.Get();
 
@@ -115,7 +115,7 @@ namespace Spikey {
 		}
 
 
-		TRef& operator=(TRef&& move) {
+		TRefCountPtr& operator=(TRefCountPtr&& move) {
 			if (this != &move) {
 
 				T* old = m_Ptr;
@@ -154,11 +154,11 @@ namespace Spikey {
 		mutable T* m_Ptr;
 
 		template<typename OtherT>
-		friend class TRef;
+		friend class TRefCountPtr;
 	};
 
 	template<typename T, typename... TArgs>
-	TRef<T> CreateRef(TArgs&&... args) {
-		return TRef<T>(new T(std::forward<TArgs>(args)...));
+	TRefCountPtr<T> CreateRefCounted(TArgs&&... args) {
+		return TRefCountPtr<T>(new T(std::forward<TArgs>(args)...));
 	}
 }

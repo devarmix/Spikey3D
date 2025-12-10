@@ -1,11 +1,10 @@
-#include <Backend/Vulkan/VulkanRHI.h>
-#include <Backend/Vulkan/VulkanResource.h>
-
+#include <Backend/Vulkan/VulkanBackend.h>
 #include <spirv_reflect.h>
 
 namespace Spikey {
 
-	constexpr VkFormat ConvertImageFormat(ETextureFormat format) {
+	constexpr VkFormat ConvertVkImageFormat(ETextureFormat format) 
+	{
 		switch (format)
 		{
 		case ETextureFormat::RGBA8U:
@@ -43,21 +42,8 @@ namespace Spikey {
 		}
 	}
 
-	constexpr VkImageUsageFlags ConvertTextureUsage(ETextureUsage flags) {
-		VkImageUsageFlags outFlags = 0;
-
-		if (EnumHasAllFlags(flags, ETextureUsage::Sampled))     outFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
-		if (EnumHasAllFlags(flags, ETextureUsage::Storage))     outFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
-		if (EnumHasAllFlags(flags, ETextureUsage::ColorTarget)) outFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		if (EnumHasAllFlags(flags, ETextureUsage::DepthTarget)) outFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		if (EnumHasAllFlags(flags, ETextureUsage::CopySrc))     outFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-		if (EnumHasAllFlags(flags, ETextureUsage::CopyDst))     outFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-		return outFlags;
-	}
-
-	constexpr VkImageLayout ConvertImageLayout(EGPUAccess flags) {
-
+	constexpr VkImageLayout ConvertVkImageLayout(EGPUAccess flags) 
+	{
 		if (EnumHasAnyFlags(flags, EGPUAccess::UAVCompute | EGPUAccess::UAVGraphics))      return VK_IMAGE_LAYOUT_GENERAL;
 		else if (EnumHasAnyFlags(flags, EGPUAccess::SRVCompute | EGPUAccess::SRVGraphics)) return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		else if (EnumHasAllFlags(flags, EGPUAccess::CopySrc))                              return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -67,7 +53,8 @@ namespace Spikey {
 		else                                                                               return VK_IMAGE_LAYOUT_UNDEFINED;
 	}
 
-	constexpr VkAccessFlags2 ConvertResourceState(EGPUAccess flags) {
+	constexpr VkAccessFlags2 ConvertVkResourceState(EGPUAccess flags) 
+	{
 		VkAccessFlags2 outFlags = 0;
 
 		if (EnumHasAnyFlags(flags, EGPUAccess::UAVCompute | EGPUAccess::UAVGraphics)) outFlags |= VK_ACCESS_2_SHADER_WRITE_BIT;
@@ -81,7 +68,8 @@ namespace Spikey {
 		return outFlags;
 	}
 
-	constexpr VkPipelineStageFlags2 ConvertPipelineStage(EGPUAccess flags) {
+	constexpr VkPipelineStageFlags2 ConvertVkPipelineStage(EGPUAccess flags) 
+	{
 		VkPipelineStageFlags2 outFlags = 0;
 
 		if (EnumHasAnyFlags(flags, EGPUAccess::SRVCompute | EGPUAccess::UAVCompute))   outFlags |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
@@ -94,7 +82,8 @@ namespace Spikey {
 		return outFlags;
 	}
 
-	constexpr VkBufferUsageFlags ConvertBufferUsage(EBufferUsage flags) {
+	constexpr VkBufferUsageFlags ConvertVkBufferUsage(EBufferUsage flags) 
+	{
 		VkBufferUsageFlags outFlags = 0;
 
 		if (EnumHasAllFlags(flags, EBufferUsage::Constant)) outFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
@@ -107,7 +96,8 @@ namespace Spikey {
 		return outFlags;
 	}
 
-	constexpr VkFrontFace ConvertFrontFace(EFrontFace face) {
+	constexpr VkFrontFace ConvertVkFrontFace(EFrontFace face) 
+	{
 		switch (face)
 		{
 		case EFrontFace::ClockWise:
@@ -119,6 +109,7 @@ namespace Spikey {
 		}
 	}
 
+	/*
 	constexpr VkImageSubresourceRange SubresourceRangeToVulkan(const SubresourceRange& range) {
 		VkImageSubresourceRange outRange{};
 		outRange.aspectMask = VK_IMAGE_ASPECT_NONE;
@@ -128,15 +119,392 @@ namespace Spikey {
 		outRange.levelCount = range.NumMips;
 
 		return outRange;
+	} */
+
+	constexpr VkPrimitiveTopology ConvertVkPrimitiveTopology(EPrimitiveTopology topology) 
+	{
+		switch (topology)
+		{
+		case EPrimitiveTopology::PointList:
+			return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+		case EPrimitiveTopology::LineList:
+			return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		case EPrimitiveTopology::LineStrip:
+			return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+		case EPrimitiveTopology::TriangleList:
+			return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		case EPrimitiveTopology::TriangleStrip:
+			return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+		case EPrimitiveTopology::TriangleFan:
+			return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+		case EPrimitiveTopology::TriangleListWithAdjacency:
+			return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY;
+		case EPrimitiveTopology::TriangleStripWithAdjacency:
+			return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY;
+		case EPrimitiveTopology::PatchList:
+			return VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+		default:
+			return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+		}
 	}
 
-	constexpr VkPrimitiveTopology PrimitiveTopologyToVulkan(EPrimitiveTopology topology);
-	constexpr VkCullModeFlags CullModeToVulkan(ECullMode mode);
-	constexpr VkBlendFactor BlendFactorToVulkan(EBlendFactor factor);
-	constexpr VkBlendOp BlendOpToVulkan(EBlendOp op);
-	constexpr VkCompareOp ComparisonFuncToVulkan(EComparisonFunc func);
-	constexpr VkStencilOp StencilOpToVulkan(EStencilOp op);
+	constexpr VkCullModeFlags ConvertVkCullMode(ECullMode mode) 
+	{
+		switch (mode)
+		{
+		case ECullMode::FrontFace:
+			return VK_CULL_MODE_FRONT_BIT;
+		case ECullMode::BackFace:
+			return VK_CULL_MODE_BACK_BIT;
+		default:
+			return VK_CULL_MODE_NONE;
+		}
+	}
 
+	constexpr VkBlendFactor ConvertVkBlendFactor(EBlendFactor factor) 
+	{
+		switch (factor)
+		{
+		case EBlendFactor::Zero:
+			return VK_BLEND_FACTOR_ZERO;
+		case EBlendFactor::One:
+			return VK_BLEND_FACTOR_ONE;
+		case EBlendFactor::SrcColor:
+			return VK_BLEND_FACTOR_SRC_COLOR;
+		case EBlendFactor::OneMinusSrcColor:
+			return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+		case EBlendFactor::SrcAlpha:
+			return VK_BLEND_FACTOR_SRC_ALPHA;
+		case EBlendFactor::OneMinusSrcAlpha:
+			return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		case EBlendFactor::DstAlpha:
+			return VK_BLEND_FACTOR_DST_ALPHA;
+		case EBlendFactor::OneMinusDstAlpha:
+			return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+		case EBlendFactor::DstColor:
+			return VK_BLEND_FACTOR_DST_COLOR;
+		case EBlendFactor::OneMinusDstColor:
+			return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+		case EBlendFactor::SrcAlphaSaturate:
+			return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+		case EBlendFactor::ConstantColor:
+			return VK_BLEND_FACTOR_CONSTANT_COLOR;
+		case EBlendFactor::OneMinusConstantColor:
+			return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+		case EBlendFactor::Src1Color:
+			return VK_BLEND_FACTOR_SRC1_COLOR;
+		case EBlendFactor::OneMinusSrc1Color:
+			return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
+		case EBlendFactor::Src1Alpha:
+			return VK_BLEND_FACTOR_SRC1_ALPHA;
+		case EBlendFactor::OneMinusSrc1Alpha:
+			return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
+		default:
+			return VK_BLEND_FACTOR_ZERO;
+		}
+	}
+
+	constexpr VkBlendOp ConvertVkBlendOp(EBlendOp op) 
+	{
+		switch (op)
+		{
+		case EBlendOp::Add:
+			return VK_BLEND_OP_ADD;
+		case EBlendOp::Subtract:
+			return VK_BLEND_OP_SUBTRACT;
+		case EBlendOp::ReverseSubtract:
+			return VK_BLEND_OP_REVERSE_SUBTRACT;
+		case EBlendOp::Min:
+			return VK_BLEND_OP_MIN;
+		case EBlendOp::Max:
+			return VK_BLEND_OP_MAX;
+		default:
+			return VK_BLEND_OP_ADD;
+		}
+	}
+
+	constexpr VkCompareOp ConvertVkCompareOp(EComparisonFunc func) 
+	{
+		switch (func)
+		{
+		case EComparisonFunc::Less:
+			return VK_COMPARE_OP_LESS;
+		case EComparisonFunc::Equal:
+			return VK_COMPARE_OP_EQUAL;
+		case EComparisonFunc::LessOrEqual:
+			return VK_COMPARE_OP_LESS_OR_EQUAL;
+		case EComparisonFunc::Greater:
+			return VK_COMPARE_OP_GREATER;
+		case EComparisonFunc::NotEqual:
+			return VK_COMPARE_OP_NOT_EQUAL;
+		case EComparisonFunc::GreaterOrEqual:
+			return VK_COMPARE_OP_GREATER_OR_EQUAL;
+		case EComparisonFunc::Always:
+			return VK_COMPARE_OP_ALWAYS;
+		default:
+			return VK_COMPARE_OP_NEVER;
+		}
+	}
+
+	constexpr VkStencilOp ConvertVkStencilOp(EStencilOp op) 
+	{
+		switch (op)
+		{
+		case EStencilOp::Keep:
+			return VK_STENCIL_OP_KEEP;
+		case EStencilOp::Zero:
+			return VK_STENCIL_OP_ZERO;
+		case EStencilOp::Replace:
+			return VK_STENCIL_OP_REPLACE;
+		case EStencilOp::IncrementAndClamp:
+			return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+		case EStencilOp::DecrementAndClamp:
+			return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+		case EStencilOp::Invert:
+			return VK_STENCIL_OP_INVERT;
+		case EStencilOp::IncrementAndWrap:
+			return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+		case EStencilOp::DecrementAndWrap:
+			return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+		default:
+			return VK_STENCIL_OP_KEEP;
+		}
+	}
+
+	constexpr VkSamplerAddressMode ConvertVkAddressMode(ESamplerAddress mode) 
+	{
+		switch (mode)
+		{
+		case ESamplerAddress::Clamp:
+			return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		case ESamplerAddress::Wrap:
+			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		case ESamplerAddress::Mirror:
+			return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+		default:
+			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		}
+	}
+
+	constexpr VkImageAspectFlags ConvertVkImageAspect(ETextureFormat format) 
+	{
+		switch (format)
+		{
+		case ETextureFormat::D32F:
+			return VK_IMAGE_ASPECT_DEPTH_BIT;
+		default:
+			return VK_IMAGE_ASPECT_COLOR_BIT;
+		}
+	}
+
+	constexpr VkSamplerReductionMode ConvertVkReductionMode(ESamplerReduction mode)
+	{
+		switch (mode)
+		{
+		case ESamplerReduction::Minimum:
+			return VK_SAMPLER_REDUCTION_MODE_MIN;
+		case ESamplerReduction::Maximum:
+			return VK_SAMPLER_REDUCTION_MODE_MAX;
+		default:
+			return VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
+		}
+	}
+
+	VulkanCommandList::VulkanCommandList(VulkanQueue* queue, VulkanDevice& device) 
+		: m_Device(device)
+	{
+		VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+		poolInfo.queueFamilyIndex = queue->GetFamilyIndex();
+		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+		VK_CHECK(vkCreateCommandPool(m_Device.GetDeviceHandle(), &poolInfo, nullptr, &m_Pool));
+
+		VkCommandBufferAllocateInfo cmdInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+		cmdInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdInfo.commandPool = m_Pool;
+		cmdInfo.commandBufferCount = 1;
+
+		VK_CHECK(vkAllocateCommandBuffers(m_Device.GetDeviceHandle(), &cmdInfo, &m_CmdBuffer));
+	}
+
+	VulkanCommandList::~VulkanCommandList() 
+	{
+		vkDestroyCommandPool(m_Device.GetDeviceHandle(), m_Pool, nullptr);
+	}
+
+	VulkanQueue::VulkanQueue(ERHIQueue queueID, VkQueue queue, uint32 familyIndex, VulkanDevice& device)
+		: m_QueueID(queueID)
+		, m_Queue(queue)
+		, m_FamilyIndex(familyIndex)
+		, m_Device(device)
+	{
+		VkSemaphoreTypeCreateInfo semaphoreTypeinfo{.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
+		semaphoreTypeinfo.initialValue = 0;
+		semaphoreTypeinfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+
+		VkSemaphoreCreateInfo semaphoreInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+		semaphoreInfo.pNext = &semaphoreTypeinfo;
+		semaphoreInfo.flags = 0;
+
+		VK_CHECK(vkCreateSemaphore(m_Device.GetDeviceHandle(), &semaphoreInfo, nullptr, &m_TrackingSemaphore));
+	}
+
+	VulkanQueue::~VulkanQueue() 
+	{
+		vkDestroySemaphore(m_Device.GetDeviceHandle(), m_TrackingSemaphore, nullptr);
+	}
+
+	TRefCountPtr<VulkanCommandList> VulkanQueue::CreateCommandList()
+	{
+		std::lock_guard lock(m_Mutex);
+
+		TRefCountPtr<VulkanCommandList> list = nullptr;
+		if (m_ListsPool.empty())
+		{
+			list = CreateRefCounted<VulkanCommandList>(this, m_Device);
+		}
+		else
+		{
+			list = m_ListsPool.back();
+			m_ListsPool.pop_back();
+		}
+
+		return list;
+	}
+
+	void VulkanQueue::AddWaitSemaphore(VkSemaphore wait, uint64 value)
+	{
+		if (!wait)
+			return;
+
+		m_WaitSemaphores.push_back(wait);
+		m_WaitSemaphoreValues.push_back(value);
+	}
+
+	void VulkanQueue::AddSignalSemaphore(VkSemaphore signal, uint64 value)
+	{
+		if (!signal)
+			return;
+
+		m_SignalSemaphores.push_back(signal);
+		m_SignalSemaphoreValues.push_back(value);
+	}
+
+	// TODO: Maybe make thread-safe
+	void VulkanQueue::Submit(const VulkanCommandList** cmds, uint64 numCmd)
+	{
+		std::vector<VkCommandBuffer> cmdBuffers(numCmd);
+		std::vector<VkPipelineStageFlags> waitStages(m_WaitSemaphores.size());
+
+		for (int32 i = 0; i < m_WaitSemaphores.size(); i++)
+		{
+			waitStages[i] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		}
+		m_LastSubmitID++;
+
+		for (uint64 i = 0; i < numCmd; i++)
+		{
+			VulkanCommandList* list = (VulkanCommandList*)cmds[i];
+			cmdBuffers[i] = list->GetCmdHandle();
+			m_ListsInFlight.push_back(list);
+		}
+
+		m_SignalSemaphores.push_back(m_TrackingSemaphore);
+		m_SignalSemaphoreValues.push_back(m_LastSubmitID);
+
+		VkTimelineSemaphoreSubmitInfo semaphoreInfo{ .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };
+		semaphoreInfo.signalSemaphoreValueCount = m_SignalSemaphoreValues.size();
+		semaphoreInfo.pSignalSemaphoreValues = m_SignalSemaphoreValues.data();
+
+		if (!m_WaitSemaphoreValues.empty())
+		{
+			semaphoreInfo.waitSemaphoreValueCount = m_WaitSemaphoreValues.size();
+			semaphoreInfo.pWaitSemaphoreValues = m_WaitSemaphoreValues.data();
+		}
+
+		VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO };
+		submitInfo.pNext = &semaphoreInfo;
+		submitInfo.commandBufferCount = numCmd;
+		submitInfo.pCommandBuffers = cmdBuffers.data();
+		submitInfo.waitSemaphoreCount = m_WaitSemaphores.size();
+		submitInfo.pWaitSemaphores = m_WaitSemaphores.data();
+		submitInfo.pWaitDstStageMask = waitStages.data();
+		submitInfo.signalSemaphoreCount = m_SignalSemaphores.size();
+		submitInfo.pSignalSemaphores = m_SignalSemaphores.data();
+
+		VK_CHECK(vkQueueSubmit(m_Queue, 1, &submitInfo, nullptr));
+
+		m_WaitSemaphores.clear();
+		m_WaitSemaphoreValues.clear();
+		m_SignalSemaphores.clear();
+		m_SignalSemaphoreValues.clear();
+
+		//return m_LastSubmitID;
+	}
+
+	//void VulkanQueue::WaitCommandList(VulkanCommandList* cmd, uint64 timeout)
+	//{
+    //
+	//}
+
+	uint64 VulkanQueue::UpdateLastFinishedID() 
+	{
+		VK_CHECK(vkGetSemaphoreCounterValue(m_Device.GetDeviceHandle(), m_TrackingSemaphore, &m_LastFinishedID));
+		return m_LastFinishedID;
+	}
+
+	void VulkanQueue::RetireCommandLists()
+	{
+		std::vector<TRefCountPtr<VulkanCommandList>> submissions{};
+		std::swap(submissions, m_ListsInFlight);
+
+		UpdateLastFinishedID();
+
+		for (auto& cmd : submissions)
+		{
+			if (cmd->SubmissionID <= m_LastFinishedID)
+			{
+				cmd->SubmissionID = 0;
+				m_ListsPool.push_back(cmd);
+			}
+			else
+			{
+				m_ListsInFlight.push_back(cmd);
+			}
+		}
+	}
+
+	bool VulkanQueue::PollCommandList(uint64 cmdID)
+	{
+		if (cmdID > m_LastSubmitID || cmdID == 0)
+			return false;
+
+		bool completed = m_LastFinishedID >= cmdID;
+		if (completed)
+			return true;
+
+		completed = UpdateLastFinishedID() >= cmdID;
+		return completed;
+	}
+
+	bool VulkanQueue::WaitCommandList(VulkanCommandList* cmd, uint64 timeout)
+	{
+		if (cmd->SubmissionID > m_LastSubmitID || cmd->SubmissionID == 0)
+			return false;
+
+		if (PollCommandList(cmd->SubmissionID))
+			return true;
+
+		VkSemaphoreWaitInfo info{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+		info.pSemaphores = &m_TrackingSemaphore;
+		info.pValues = &cmd->SubmissionID;
+		info.semaphoreCount = 1;
+
+		VkResult result = vkWaitSemaphores(m_Device.GetDeviceHandle(), &info, timeout);
+		return result == VK_SUCCESS;
+	}
+
+	/*
 	VulkanCommandList::VulkanCommandList(ERHIQueue queue, VulkanRHIDevice& device)
 		: m_Device(device), m_SubmitID(0)
 	{
@@ -197,10 +565,14 @@ namespace Spikey {
 		VkImage vkTex = (VkImage)tex->GetNative();
 
 		VkClearColorValue clearValue = { color.x, color.y, color.z, color.w };
-		VkImageSubresourceRange clearRange = VulkanUtils::SubresourceRangeToVulkan(range);
-		clearRange.aspectMask = VulkanUtils::TextureFormatToAspect(tex->GetFormat());
+		VkImageSubresourceRange clearRange{};
+		clearRange.baseArrayLayer = range.BaseLayer;
+		clearRange.baseMipLevel = range.BaseMip;
+		clearRange.layerCount = range.NumLayers;
+		clearRange.levelCount = range.NumMips;
+		clearRange.aspectMask = ConvertVkImageAspect(tex->GetFormat());
 
-		vkCmdClearColorImage(m_CmdBuffer, vkTex, VulkanUtils::GPUAccessToVulkanLayout(access), &clearValue, 1, &clearRange);
+		vkCmdClearColorImage(m_CmdBuffer, vkTex, ConvertVkImageLayout(access), &clearValue, 1, &clearRange);
 	}
 
 	void VulkanCommandList::CopyFromTextureToCPU(IRHITexture* src, const SubresourceCopyRegion& region, IRHIBuffer* dst) {
@@ -217,7 +589,7 @@ namespace Spikey {
 		vkRegion.bufferRowLength = 0;
 		vkRegion.bufferImageHeight = 0;
 
-		vkRegion.imageSubresource.aspectMask = VulkanUtils::TextureFormatToAspect(src->GetFormat());
+		vkRegion.imageSubresource.aspectMask = ConvertVkImageAspect(src->GetFormat());
 		vkRegion.imageSubresource.mipLevel = region.MipLevel;
 		vkRegion.imageSubresource.baseArrayLayer = region.BaseLayer;
 		vkRegion.imageSubresource.layerCount = region.NumLayers;
@@ -246,14 +618,17 @@ namespace Spikey {
 			const TextureBarrierRegion& region = regions[i];
 
 			VkImageMemoryBarrier2 b{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-			b.srcStageMask = VulkanUtils::GPUAccessToVulkanStage(region.LastAccess);
-			b.srcAccessMask = VulkanUtils::GPUAccessToVulkanAccess(region.LastAccess);
-			b.oldLayout = VulkanUtils::GPUAccessToVulkanLayout(region.LastAccess);
-			b.dstStageMask = VulkanUtils::GPUAccessToVulkanStage(region.NewAccess);
-			b.dstAccessMask = VulkanUtils::GPUAccessToVulkanAccess(region.NewAccess);
-			b.newLayout = VulkanUtils::GPUAccessToVulkanLayout(region.NewAccess);
-			b.subresourceRange = VulkanUtils::SubresourceRangeToVulkan(region.Range);
-			b.subresourceRange.aspectMask = VulkanUtils::TextureFormatToAspect(texture->GetFormat());
+			b.srcStageMask = ConvertVkPipelineStage(region.LastAccess);
+			b.srcAccessMask = ConvertVkResourceState(region.LastAccess);
+			b.oldLayout = ConvertVkImageLayout(region.LastAccess);
+			b.dstStageMask = ConvertVkPipelineStage(region.NewAccess);
+			b.dstAccessMask = ConvertVkResourceState(region.NewAccess);
+			b.newLayout = ConvertVkImageLayout(region.NewAccess);
+			b.subresourceRange.baseArrayLayer = region.Range.BaseLayer;
+			b.subresourceRange.baseMipLevel = region.Range.BaseMip;
+			b.subresourceRange.layerCount = region.Range.NumLayers;
+			b.subresourceRange.levelCount = region.Range.NumMips;
+			b.subresourceRange.aspectMask = ConvertVkImageAspect(texture->GetFormat());
 
 			barriers.push_back(b);
 		}
@@ -287,10 +662,10 @@ namespace Spikey {
 		VkBuffer vkBuff = (VkBuffer)buffer->GetNative();
 
 		VkBufferMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2 };
-		barrier.srcStageMask = VulkanUtils::GPUAccessToVulkanStage(lastAccess);
-		barrier.srcAccessMask = VulkanUtils::GPUAccessToVulkanAccess(lastAccess);
-		barrier.dstStageMask = VulkanUtils::GPUAccessToVulkanStage(newAccess);
-		barrier.dstAccessMask = VulkanUtils::GPUAccessToVulkanAccess(newAccess);
+		barrier.srcStageMask = ConvertVkPipelineStage(lastAccess);
+		barrier.srcAccessMask = ConvertVkResourceState(lastAccess);
+		barrier.dstStageMask = ConvertVkPipelineStage(newAccess);
+		barrier.dstAccessMask = ConvertVkResourceState(newAccess);
 		barrier.buffer = vkBuff;
 		barrier.offset = offset;
 		barrier.size = size;
@@ -306,137 +681,280 @@ namespace Spikey {
 		VkBuffer vkBuff = (VkBuffer)buffer->GetNative();
 		vkCmdFillBuffer(m_CmdBuffer, vkBuff, offset, size, value);
 	}
+	*/
 
-	VulkanBuffer::VulkanBuffer(uint64 size, EBufferUsage usage, VulkanRHIDevice& device)
-		: IRHIBuffer(size, usage), m_Device(device), m_MappedData(nullptr)
+	VulkanBuffer::VulkanBuffer(uint64 size, EBufferFlags flags, VulkanRHIDevice& device)
+		: RHIBuffer(size, flags), m_Device(device), m_MappedData(nullptr)
 	{
 		VkBufferCreateInfo bufferInfo = { .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 		bufferInfo.pNext = nullptr;
 		bufferInfo.flags = 0;
 		bufferInfo.size = size;
-		bufferInfo.usage = VulkanUtils::BufferUsageToVulkan(usage);
+		bufferInfo.usage = 0;
 
-		VmaAllocationCreateInfo vmaAllocInfo{};
-		vmaAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		//vmaAllocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		if (EnumHasAllFlags(flags, EBufferFlags::Constant))
+		{
+			bufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		}
+		if (EnumHasAllFlags(flags, EBufferFlags::Index))
+		{
+			bufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+		}
+		if (EnumHasAllFlags(flags, EBufferFlags::Indirect))
+		{
+			bufferInfo.usage |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+		}
+		if (EnumHasAllFlags(flags, EBufferFlags::Storage))
+		{
+			bufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		}
+		if (EnumHasAllFlags(flags, EBufferFlags::GPUAddress))
+		{
+			bufferInfo.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		}
 
-		VK_CHECK(vmaCreateBuffer(m_Device.GetAllocatorHandle(), &bufferInfo, &vmaAllocInfo, &m_Buffer,
+		bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+		VmaAllocationCreateInfo allocInfo{};
+		if (EnumHasAllFlags(flags, EBufferFlags::ReadBack))
+		{
+			allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+			allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+		}
+		else if (EnumHasAllFlags(flags, EBufferFlags::Upload))
+		{
+			allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+			allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		}
+		else 
+		{
+			allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+		}
+
+		VK_CHECK(vmaCreateBuffer(m_Device.GetAllocatorHandle(), &bufferInfo, &allocInfo, &m_Buffer,
 			&m_Allocation, nullptr));
 
-		if (EnumHasAnyFlags(usage, EBufferUsage::Mapped)) {
+		if (EnumHasAnyFlags(flags, EBufferFlags::Upload | EBufferFlags::ReadBack)) 
+		{
 			vmaMapMemory(m_Device.GetAllocatorHandle(), m_Allocation, &m_MappedData);
 		}
 	}
 
-	VulkanBuffer::~VulkanBuffer() {
+	VulkanBuffer::~VulkanBuffer() 
+	{
 		m_Device.DestroyResource({ 
 			.Buffer = m_Buffer, 
 			.Allocation = m_Allocation
 			});
 	}
 
-	VulkanTexture2D::VulkanTexture2D(uint32 width, uint32 height, uint32 numMips, ETextureFormat format, ETextureUsage usage, VulkanRHIDevice& device)
-		: IRHITexture2D(width, height, numMips, format, usage), m_Device(device)
-	{
-		VkImageCreateInfo imgInfo{.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-		imgInfo.imageType = VK_IMAGE_TYPE_2D;
-		imgInfo.format = VulkanUtils::TextureFormatToVulkan(format);
-		imgInfo.extent = VkExtent3D{ width, height, 1 };
-		imgInfo.mipLevels = numMips;
-		imgInfo.arrayLayers = 1;
-		imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imgInfo.usage = VulkanUtils::TextureUsageToVulkan(usage);
-
-		VmaAllocationCreateInfo allocInfo = {};
-		allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VK_CHECK(vmaCreateImage(m_Device.GetAllocatorHandle(), &imgInfo, &allocInfo, &m_Image, &m_Allocation, nullptr));
-	}
-
-	VulkanTexture2D::~VulkanTexture2D() {
-		m_Device.DestroyResource({
-			.Image = m_Image,
-			.Allocation = m_Allocation
-			});
-	}
-
-	VulkanTextureCube::VulkanTextureCube(uint32 size, uint32 numMips, ETextureFormat format, ETextureUsage usage, VulkanRHIDevice& device)
-		: IRHITextureCube(size, numMips, format, usage), m_Device(device)
+	VulkanTexture::VulkanTexture(const TextureDesc& desc, VulkanRHIDevice& device) 
+		: RHITexture(desc), m_Device(device)
 	{
 		VkImageCreateInfo imgInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-		imgInfo.imageType = VK_IMAGE_TYPE_2D;
-		imgInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		imgInfo.format = VulkanUtils::TextureFormatToVulkan(format);
-		imgInfo.extent = VkExtent3D{ size, size, 1 };
-		imgInfo.mipLevels = numMips;
-		imgInfo.arrayLayers = 6;
-		imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imgInfo.format = ConvertVkImageFormat(desc.Format);
+		imgInfo.extent = VkExtent3D{ desc.Width, desc.Height, desc.Depth };
+		imgInfo.mipLevels = desc.MipLevels;
+		imgInfo.arrayLayers = desc.ArraySize;
+		imgInfo.samples = (VkSampleCountFlagBits)desc.SampleCount;
 		imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imgInfo.usage = VulkanUtils::TextureUsageToVulkan(usage);
+		imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imgInfo.usage = 0;
+		imgInfo.flags = 0;
+
+		switch (desc.Dimension)
+		{
+		case ETextureDimension::Texture1D:
+		case ETextureDimension::Texture1DArray:
+			imgInfo.imageType = VK_IMAGE_TYPE_1D;
+		case ETextureDimension::Texture2D:
+		case ETextureDimension::Texture2DArray:
+			imgInfo.imageType = VK_IMAGE_TYPE_2D;
+		case ETextureDimension::TextureCube:
+		case ETextureDimension::TextureCubeArray:
+			imgInfo.imageType = VK_IMAGE_TYPE_2D;
+			imgInfo.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+		case ETextureDimension::Texture3D:
+			imgInfo.imageType = VK_IMAGE_TYPE_3D;
+		default:
+			assert(0);
+			break;
+		}
+
+		if (EnumHasAllFlags(desc.Flags, ETextureFlags::Sampled))
+		{
+			imgInfo.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+		}
+		if (EnumHasAllFlags(desc.Flags, ETextureFlags::Storage))
+		{
+			imgInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+		}
+		if (EnumHasAllFlags(desc.Flags, ETextureFlags::ColorTarget))
+		{
+			imgInfo.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		}
+		if (EnumHasAllFlags(desc.Flags, ETextureFlags::DepthTarget))
+		{
+			imgInfo.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		}
+		if (EnumHasAllFlags(desc.Flags, ETextureFlags::CopySrc))
+		{
+			imgInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		}
+		if (EnumHasAllFlags(desc.Flags, ETextureFlags::CopyDst))
+		{
+			imgInfo.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		}
 
 		VmaAllocationCreateInfo allocInfo = {};
 		allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		allocInfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 		VK_CHECK(vmaCreateImage(m_Device.GetAllocatorHandle(), &imgInfo, &allocInfo, &m_Image, &m_Allocation, nullptr));
 	}
 
-	VulkanTextureCube::~VulkanTextureCube() {
-		m_Device.DestroyResource({
-			.Image = m_Image,
-			.Allocation = m_Allocation
-			});
-	}
-
-	VulkanTextureView::VulkanTextureView(const SubresourceRange& range, IRHITexture* tex, VulkanRHIDevice& device)
-		: IRHITextureView(range), m_Device(device)
+	VulkanTexture::~VulkanTexture() 
 	{
-		VkImageViewCreateInfo viewInfo{.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+		m_Device.DestroyResource({ 
+			.Image = m_Image, 
+			.Allocation = m_Allocation 
+			});
 
-		// FIXME
-		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		viewInfo.image = (VkImage)tex->GetNative();
-		viewInfo.format = VulkanUtils::TextureFormatToVulkan(tex->GetFormat());
-		viewInfo.subresourceRange = VulkanUtils::SubresourceRangeToVulkan(range);
-		viewInfo.subresourceRange.aspectMask = VulkanUtils::TextureFormatToAspect(tex->GetFormat());
-
-		VK_CHECK(vkCreateImageView(m_Device.GetDeviceHandle(), &viewInfo, nullptr, &m_View));
+		for (auto& [k, v] : m_ViewsMap) 
+		{
+			m_Device.DestroyResource({ .View = v });
+		}
+		m_ViewsMap.clear();
 	}
 
-	VulkanTextureView::~VulkanTextureView() {
-		m_Device.DestroyResource({
-			.View = m_View
-			});
+	VkImageView VulkanTexture::GetSubresourceView(const TextureSubresourceSet& subresource, ETextureDimension dimension,
+		ETextureFormat format, ESubresourceViewType viewType)
+	{
+		std::lock_guard lock(m_Mutex);
+
+		if (dimension == ETextureDimension::None)
+			dimension = m_Desc.Dimension;
+
+		if (format == ETextureFormat::None)
+			format = m_Desc.Format;
+
+		SubresourceViewKey key{};
+		key.Dimension = dimension;
+		key.Format = format;
+		key.Subresources = subresource;
+		key.ViewType = viewType;
+
+		auto it = m_ViewsMap.find(key);
+		if (it != m_ViewsMap.end()) {
+			return it->second;
+		}
+
+		VkImageViewCreateInfo viewInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+		viewInfo.image = m_Image;
+		viewInfo.format = ConvertVkImageFormat(format);
+		viewInfo.subresourceRange.baseArrayLayer = subresource.BaseLayer;
+		viewInfo.subresourceRange.baseMipLevel = subresource.BaseMip;
+		viewInfo.subresourceRange.layerCount = subresource.NumLayers;
+		viewInfo.subresourceRange.levelCount = subresource.NumMips;
+		viewInfo.subresourceRange.aspectMask = ConvertVkImageAspect(format);
+
+		if ((viewInfo.subresourceRange.aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
+			== (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
+		{
+			if (viewType == ESubresourceViewType::DepthOnly)
+			{
+				viewInfo.subresourceRange.aspectMask &= (~VK_IMAGE_ASPECT_STENCIL_BIT);
+			}
+			else if (viewType == ESubresourceViewType::StencilOnly)
+			{
+				viewInfo.subresourceRange.aspectMask &= (~VK_IMAGE_ASPECT_DEPTH_BIT);
+			}
+		}
+
+		switch (dimension)
+		{
+		case ETextureDimension::Texture1D:
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D;
+			break;
+		case ETextureDimension::Texture1DArray:
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+			break;
+		case ETextureDimension::Texture2D:
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			break;
+		case ETextureDimension::Texture2DArray:
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+			break;
+		case ETextureDimension::TextureCube:
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+			break;
+		case ETextureDimension::TextureCubeArray:
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+			break;
+		case ETextureDimension::Texture3D:
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_3D;
+			break;
+		default:
+			assert(0);
+			break;
+		}
+
+		VkImageView& view = m_ViewsMap[key];
+		VK_CHECK(vkCreateImageView(m_Device.GetDeviceHandle(), &viewInfo, nullptr, &view));
+
+		return view;
 	}
 
 	VulkanSamplerState::VulkanSamplerState(const SamplerStateDesc& desc, VulkanRHIDevice& device) 
-		: m_Device(device) 
+		: RHISamplerState(desc), m_Device(device)
 	{
 		VkSamplerCreateInfo info{ .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-		info.magFilter = VulkanUtils::SamplerFilterToVulkan(desc.Filter);
-		info.minFilter = info.magFilter;
-		info.mipmapMode = VulkanUtils::SamplerMipMapModeToVulkan(desc.Filter);
-		info.addressModeU = VulkanUtils::SamplerAddressToVulkan(desc.AddressU);
-		info.addressModeV = VulkanUtils::SamplerAddressToVulkan(desc.AddressV);
-		info.addressModeW = VulkanUtils::SamplerAddressToVulkan(desc.AddressW);
+
+		switch (desc.Filter)
+		{
+		case ESamplerFilter::Point:
+			info.magFilter = VK_FILTER_NEAREST;
+			info.minFilter = VK_FILTER_NEAREST;
+			info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		case ESamplerFilter::Bilinear:
+			info.magFilter = VK_FILTER_LINEAR;
+			info.minFilter = VK_FILTER_LINEAR;
+			info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		case ESamplerFilter::Trilinear:
+			info.magFilter = VK_FILTER_LINEAR;
+			info.minFilter = VK_FILTER_LINEAR;
+			info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		default:
+			info.magFilter = VK_FILTER_NEAREST;
+			info.minFilter = VK_FILTER_NEAREST;
+			info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+			break;
+		}
+
+		info.addressModeU = ConvertVkAddressMode(desc.AddressU);
+		info.addressModeV = ConvertVkAddressMode(desc.AddressV);
+		info.addressModeW = ConvertVkAddressMode(desc.AddressW);
 		info.minLod = desc.MinLOD;
 		info.maxLod = desc.MaxLOD;
 		info.anisotropyEnable = false;
 		info.maxAnisotropy = (float)desc.MaxAnisotropy;
 
 		VkSamplerReductionModeCreateInfoEXT createInfoReduction{};
-		if (desc.Reduction != ESamplerReduction::Standard) {
+		if (desc.Reduction != ESamplerReduction::Standard)  
+		{
 			createInfoReduction.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT;
-			createInfoReduction.reductionMode = VulkanUtils::SamplerReductionToVulkan(desc.Reduction);
+			createInfoReduction.reductionMode = ConvertVkReductionMode(desc.Reduction);
 			info.pNext = &createInfoReduction;
 		}
 
 		VK_CHECK(vkCreateSampler(m_Device.GetDeviceHandle(), &info, nullptr, &m_Sampler));
 	}
 
-	VulkanSamplerState::~VulkanSamplerState() {
+	VulkanSamplerState::~VulkanSamplerState() 
+	{
+		// FIXME
 		vkDestroySampler(m_Device.GetDeviceHandle(), m_Sampler, nullptr);
 	}
 
@@ -512,11 +1030,14 @@ namespace Spikey {
 				VulkanShader* vkShader = (VulkanShader*)vkShader;
 				auto& shaderBindings = vkShader->GetBindings();
 
-				for (auto& x : shaderBindings) {
+				for (auto& x : shaderBindings) 
+				{
 					bool found = false;
 
-					for (auto& y : m_LayoutBindings) {
-						if (x.binding == y.binding) {
+					for (auto& y : m_LayoutBindings) 
+					{
+						if (x.binding == y.binding) 
+						{
 							// check for overlapping descriptors
 							assert(x.descriptorCount == y.descriptorCount
 								&& x.descriptorType == y.descriptorType);
@@ -527,13 +1048,15 @@ namespace Spikey {
 						}
 					}
 
-					if (!found) {
+					if (!found) 
+					{
 						m_LayoutBindings.push_back(x);
 					}
 				}
 
 				auto pushConstants = vkShader->GetPushConstants();
-				if (pushConstants.size > 0) {
+				if (pushConstants.size > 0) 
+				{
 					m_PushConstants.stageFlags |= pushConstants.stageFlags;
 					m_PushConstants.size = std::max(m_PushConstants.size, pushConstants.size);
 					m_PushConstants.offset = std::min(m_PushConstants.offset, pushConstants.offset);
@@ -553,7 +1076,8 @@ namespace Spikey {
 		}
 		{
 			VulkanPSOLayoutHash layoutHash{};
-			for (auto& x : m_LayoutBindings) {
+			for (auto& x : m_LayoutBindings) 
+			{
 				layoutHash.Bindings.push_back(x);
 			}
 
@@ -565,7 +1089,8 @@ namespace Spikey {
 			m_SetLayout = cachedLayout.SetLayout;
 		}
 
-		if (desc.ComputeShader) {
+		if (desc.ComputeShader) 
+		{
 
 			VkPipelineShaderStageCreateInfo stageInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 			stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -579,7 +1104,8 @@ namespace Spikey {
 			VK_CHECK(vkCreateComputePipelines(m_Device.GetDeviceHandle(), m_Device.GetPipelineCacheHandle(),
 				1, &info, nullptr, &m_Pipeline));
 		}
-		else {
+		else 
+		{
 			VkPipelineShaderStageCreateInfo vertexShader{ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 			vertexShader.stage = VK_SHADER_STAGE_VERTEX_BIT;
 			vertexShader.module = desc.VertexShader ? (VkShaderModule)desc.VertexShader->GetNative() : nullptr;
@@ -593,31 +1119,32 @@ namespace Spikey {
 			VkPipelineShaderStageCreateInfo shaders[2] = { vertexShader, pixelShader };
 
 			VkPipelineInputAssemblyStateCreateInfo inputInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
-			inputInfo.topology = VulkanUtils::PrimitiveTopologyToVulkan(desc.PrimitiveTopology);
+			inputInfo.topology = ConvertVkPrimitiveTopology(desc.PrimitiveTopology);
 			inputInfo.primitiveRestartEnable = false;
 
 			VkPipelineRasterizationStateCreateInfo rasterInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
 			rasterInfo.polygonMode = desc.Wireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
 			rasterInfo.lineWidth = 1.f;
-			rasterInfo.cullMode = VulkanUtils::CullModeToVulkan(desc.CullMode);
-			rasterInfo.frontFace = VulkanUtils::FrontFaceToVulkan(desc.FrontFace);
+			rasterInfo.cullMode = ConvertVkCullMode(desc.CullMode);
+			rasterInfo.frontFace = ConvertVkFrontFace(desc.FrontFace);
 
 			VkFormat                            rtFormats[8] = {};
 			VkPipelineColorBlendAttachmentState blendStates[8] = {};
 
-			for (uint8 i = 0; i < desc.NumRenderTargets; i++) {
+			for (uint8 i = 0; i < desc.NumRenderTargets; i++) 
+			{
 				auto& rt = desc.RenderTargets[i];
 
 				blendStates[i].blendEnable = rt.EnableBlend;
-				blendStates[i].srcColorBlendFactor = VulkanUtils::BlendFactorToVulkan(rt.SrcBlend);
-				blendStates[i].dstColorBlendFactor = VulkanUtils::BlendFactorToVulkan(rt.DstBlend);
-				blendStates[i].colorBlendOp = VulkanUtils::BlendOpToVulkan(rt.BlendOp);
-				blendStates[i].srcAlphaBlendFactor = VulkanUtils::BlendFactorToVulkan(rt.SrcBlendAlpha);
-				blendStates[i].dstAlphaBlendFactor = VulkanUtils::BlendFactorToVulkan(rt.DstBlendAlpha);
-				blendStates[i].alphaBlendOp = VulkanUtils::BlendOpToVulkan(rt.BlendOpAlpha);
+				blendStates[i].srcColorBlendFactor = ConvertVkBlendFactor(rt.SrcBlend);
+				blendStates[i].dstColorBlendFactor = ConvertVkBlendFactor(rt.DstBlend);
+				blendStates[i].colorBlendOp = ConvertVkBlendOp(rt.BlendOp);
+				blendStates[i].srcAlphaBlendFactor = ConvertVkBlendFactor(rt.SrcBlendAlpha);
+				blendStates[i].dstAlphaBlendFactor = ConvertVkBlendFactor(rt.DstBlendAlpha);
+				blendStates[i].alphaBlendOp = ConvertVkBlendOp(rt.BlendOpAlpha);
 				blendStates[i].colorWriteMask = (uint32)rt.ColorMask;
 
-				rtFormats[i] = VulkanUtils::TextureFormatToVulkan(rt.Format);
+				rtFormats[i] = ConvertVkImageFormat(rt.Format);
 			}
 
 			VkPipelineColorBlendStateCreateInfo blendingInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
@@ -631,7 +1158,7 @@ namespace Spikey {
 			VkPipelineRenderingCreateInfo renderingInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
 			renderingInfo.colorAttachmentCount = desc.NumRenderTargets;
 			renderingInfo.pColorAttachmentFormats = rtFormats;
-			renderingInfo.depthAttachmentFormat = VulkanUtils::TextureFormatToVulkan(desc.DepthFormat);
+			renderingInfo.depthAttachmentFormat = ConvertVkImageFormat(desc.DepthFormat);
 
 			// TODO: add stencil support
 			renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
@@ -639,28 +1166,30 @@ namespace Spikey {
 			VkPipelineDepthStencilStateCreateInfo depthStencilInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
 			depthStencilInfo.depthTestEnable = desc.DepthEnable;
 			depthStencilInfo.depthWriteEnable = desc.DepthWriteEnable;
-			depthStencilInfo.depthCompareOp = VulkanUtils::ComparisonFuncToVulkan(desc.DepthFunc);
+			depthStencilInfo.depthCompareOp = ConvertVkCompareOp(desc.DepthFunc);
 			depthStencilInfo.depthBoundsTestEnable = desc.DepthClipEnable;
 			depthStencilInfo.stencilTestEnable = desc.StencilEnable;
 			
-			if (desc.StencilEnable) {
-				depthStencilInfo.front.failOp = VulkanUtils::StencilOpToVulkan(desc.FrontStencil.FailOp);
-				depthStencilInfo.front.passOp = VulkanUtils::StencilOpToVulkan(desc.FrontStencil.PassOp);
-				depthStencilInfo.front.depthFailOp = VulkanUtils::StencilOpToVulkan(desc.FrontStencil.DepthFailOp);
-				depthStencilInfo.front.compareOp = VulkanUtils::ComparisonFuncToVulkan(desc.FrontStencil.Func);
+			if (desc.StencilEnable) 
+			{
+				depthStencilInfo.front.failOp = ConvertVkStencilOp(desc.FrontStencil.FailOp);
+				depthStencilInfo.front.passOp = ConvertVkStencilOp(desc.FrontStencil.PassOp);
+				depthStencilInfo.front.depthFailOp = ConvertVkStencilOp(desc.FrontStencil.DepthFailOp);
+				depthStencilInfo.front.compareOp = ConvertVkCompareOp(desc.FrontStencil.Func);
 				depthStencilInfo.front.compareMask = desc.FrontStencil.ReadMask;
 				depthStencilInfo.front.writeMask = desc.FrontStencil.WriteMask;
 				depthStencilInfo.front.reference = 0;
 
-				depthStencilInfo.back.failOp = VulkanUtils::StencilOpToVulkan(desc.BackStencil.FailOp);
-				depthStencilInfo.back.passOp = VulkanUtils::StencilOpToVulkan(desc.BackStencil.PassOp);
-				depthStencilInfo.back.depthFailOp = VulkanUtils::StencilOpToVulkan(desc.BackStencil.DepthFailOp);
-				depthStencilInfo.back.compareOp = VulkanUtils::ComparisonFuncToVulkan(desc.BackStencil.Func);
+				depthStencilInfo.back.failOp = ConvertVkStencilOp(desc.BackStencil.FailOp);
+				depthStencilInfo.back.passOp = ConvertVkStencilOp(desc.BackStencil.PassOp);
+				depthStencilInfo.back.depthFailOp = ConvertVkStencilOp(desc.BackStencil.DepthFailOp);
+				depthStencilInfo.back.compareOp = ConvertVkCompareOp(desc.BackStencil.Func);
 				depthStencilInfo.back.compareMask = desc.BackStencil.ReadMask;
 				depthStencilInfo.back.writeMask = desc.BackStencil.WriteMask;
 				depthStencilInfo.back.reference = 0;
 			}
-			else {
+			else 
+			{
 				depthStencilInfo.front.compareMask = 0;
 				depthStencilInfo.front.writeMask = 0;
 				depthStencilInfo.front.reference = 0;
@@ -716,5 +1245,7 @@ namespace Spikey {
 		}
 	}
 
-	VulkanPipelineState::~VulkanPipelineState() {}
+	VulkanPipelineState::~VulkanPipelineState() 
+	{
+	}
 }

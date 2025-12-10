@@ -1,45 +1,37 @@
 #pragma once
-#include <Engine/Core/RefCounted.h>
+#include <Engine/Graphics/RHIResource.h>
 
 namespace Spikey {
 
-	enum class EBufferUsage : uint8 {
+	enum class EBufferFlags : uint8
+	{
 		None = 0,
-
 		Constant     = BIT(0),
 		Storage      = BIT(1),
-		CopySrc      = BIT(2),
-		CopyDst      = BIT(3),
-		Indirect     = BIT(4),
-		Index        = BIT(5),
-		Mapped       = BIT(6)
+		Indirect     = BIT(2),
+		Index        = BIT(3),
+	    Upload       = BIT(4),
+		ReadBack     = BIT(5),
+		GPUAddress   = BIT(6)
 	};
-	ENUM_FLAGS_OPERATORS(EBufferUsage);
+	ENUM_FLAGS_OPERATORS(EBufferFlags);
 
-	class IRHIBuffer : public IRefCounted {
+	class RHIBuffer : public IRHIResource
+	{
 	public:
-		IRHIBuffer(uint64 size, EBufferUsage usage)
-			: m_Size(size), m_UsageFlags(usage), m_LastAccess(EGPUAccess::None)
+		RHIBuffer(uint64 size, EBufferFlags flags)
+			: m_Size(size), m_Flags(flags)
 		{
 		}
 
 		uint64        GetSize() const { return m_Size; }
-		EBufferUsage  GetUsage() const { return m_UsageFlags; }
+		EBufferFlags  GetUsage() const { return m_Flags; }
 		virtual void* GetMappedData() const = 0;
-		virtual void* GetNative() const = 0;
-
-		void Barrier(IRHICommandList* cmd, uint64 size, uint64 offset, EGPUAccess newAccess) {
-			cmd->BarrierBuffer(this, size, offset, m_LastAccess, newAccess);
-			m_LastAccess = newAccess;
-		}
-
-		void Barrier(class IRHICommandList* cmd, EGPUAccess newAccess) { Barrier(cmd, m_Size, 0, newAccess); }
 
 	private:
-		uint64 m_Size;
-		EBufferUsage m_UsageFlags;
-		EGPUAccess m_LastAccess;
+		uint64       m_Size;
+		EBufferFlags m_Flags;
 	};
 
-	using BufferRHIRef = TRef<IRHIBuffer>;
+	using BufferRHIRef = TRef<RHIBuffer>;
 }
