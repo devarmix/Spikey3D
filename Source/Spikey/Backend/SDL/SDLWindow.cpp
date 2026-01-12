@@ -127,7 +127,7 @@ namespace Spikey {
 		}
 	}
 
-	void SDLWindow::Tick(float32 deltaTime) {
+	void SDLWindow::Tick(float deltaTime) {
 		SDL_Event e{};
 
 		while (SDL_PollEvent(&e) != 0) {

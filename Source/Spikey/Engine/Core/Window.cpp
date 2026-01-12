@@ -28,11 +28,11 @@ namespace Spikey {
 		std::vector<EKey> Pressed;
 		std::vector<EKey> Released;
 
-		float32 MouseX = 0;
-		float32 MouseY = 0;
-		float32 DeltaMouseX = 0;
-		float32 DeltaMouseY = 0;
-		float32 MouseScroll = 0;
+		float MouseX = 0;
+		float MouseY = 0;
+		float DeltaMouseX = 0;
+		float DeltaMouseY = 0;
+		float MouseScroll = 0;
 	};
 
 	static InputData s_Data = {};
@@ -62,14 +62,14 @@ namespace Spikey {
 			}
 			});
 
-		window.BindMouseDeletage([](float32 x, float32 y, float32 dx, float32 dy) {
+		window.BindMouseDeletage([](float x, float y, float dx, float dy) {
 			s_Data.MouseX = x;
 			s_Data.MouseY = y;
 			s_Data.DeltaMouseX = dx;
 			s_Data.DeltaMouseY = dy;
 			});
 
-		window.BindScrollDelegate([](float32 value) {
+		window.BindScrollDelegate([](float value) {
 			s_Data.MouseScroll = value;
 			});
 	}
@@ -106,11 +106,11 @@ namespace Spikey {
 		return s_Data.Buttons[(uint8)button].Released;
 	}
 
-	float32 Input::GetMouseX() { return s_Data.MouseX; }
-	float32 Input::GetMouseY() { return s_Data.MouseY; }
-	float32 Input::GetMouseDeltaX() { return s_Data.DeltaMouseX; }
-	float32 Input::GetMouseDeltaY() { return s_Data.DeltaMouseY; }
-	float32 Input::GetMouseScroll() { return s_Data.MouseScroll; }
+	float Input::GetMouseX() { return s_Data.MouseX; }
+	float Input::GetMouseY() { return s_Data.MouseY; }
+	float Input::GetMouseDeltaX() { return s_Data.DeltaMouseX; }
+	float Input::GetMouseDeltaY() { return s_Data.DeltaMouseY; }
+	float Input::GetMouseScroll() { return s_Data.MouseScroll; }
 
 	void Input::Tick() {
 

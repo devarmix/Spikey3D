@@ -1,50 +1,36 @@
 #pragma once
 
-#include <Engine/Graphics/Texture2D.h>
+#include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Buffer.h>
-#include <Engine/Graphics/TextureCube.h>
 
 namespace Spikey {
 
-	enum class EShaderType : uint8 {
-		None = 0,
-
+	enum class ShaderStage : uint8 
+	{
 		Vertex,
 		Pixel,
 		Compute
 	};
 
-	enum class EShaderResourceType : uint8 {
-		None = 0,
+	class GPUShader : public RefCounted 
+	{
+	protected:
+		GPUShader()
+		{
+		}
 
-		TextureSRV,
-		TextureUAV,
-		BufferSRV,
-		BufferUAV,
-		ConstantBuffer,
-
-		Sampler
-	};
-
-	constexpr char SHADER_MAGIC[4] = { 'S', 'C', 'S', 'F' };
-	constexpr char MATERIAL_SHADER_MAGIC[4] = { 'S', 'M', 'S', 'F' };
-
-	class IRHIShader : public IRefCounted {
 	public:
-		IRHIShader() = default;
+		virtual ShaderStage GetStage() const = 0;
 		virtual void* GetNative() const = 0;
 	};
 
-	using ShaderRHIRef = TRef<IRHIShader>;
-
-	enum class EFrontFace : uint8 {
-		None = 0,
-
+	enum class FrontFace : uint8 
+	{
 		ClockWise,
 		CounterClockWise
 	};
 
-	enum class EComparisonFunc : uint8 
+	enum class ComparisonFunc : uint8 
 	{
 		Never,
 		Less,
@@ -56,7 +42,7 @@ namespace Spikey {
 		Always
 	};
 
-	enum class EStencilOp : uint8 
+	enum class StencilOp : uint8 
 	{
 		Keep,
 		Zero,
@@ -68,7 +54,7 @@ namespace Spikey {
 		DecrementAndWrap
 	};
 
-	enum class EPrimitiveTopology : uint8 
+	enum class PrimitiveTopology : uint8 
 	{
 		PointList,
 		LineList,
@@ -81,14 +67,14 @@ namespace Spikey {
 		PatchList
 	};
 
-	enum class ECullMode : uint8 
+	enum class CullMode : uint8 
 	{
 		None,
 		FrontFace,
 		BackFace
 	};
 
-	enum class EBlendOp : uint8 
+	enum class BlendOperation : uint8 
 	{
 		Add,
 		Subtract,
@@ -97,7 +83,7 @@ namespace Spikey {
 		Max
 	};
 
-	enum class EBlendFactor : uint8 
+	enum class BlendFactor : uint8 
 	{
 		Zero,
 		One,
@@ -118,7 +104,8 @@ namespace Spikey {
 		OneMinusSrc1Alpha
 	};
 
-	enum class EColorMask : uint8 {
+	enum class ColorMask : uint8 
+	{
 		None = 0,
 
 		R = BIT(0),
@@ -128,59 +115,59 @@ namespace Spikey {
 
 		All = R | G | B | A
 	};
-	ENUM_FLAGS_OPERATORS(EColorMask)
+	ENUM_FLAGS_OPERATORS(ColorMask)
 
-	struct PipelineStateDesc {
-
-		IRHIShader* VertexShader = nullptr;
-		IRHIShader* PixelShader = nullptr;
-		IRHIShader* ComputeShader = nullptr;
+	struct PipelineStateDesc 
+	{
+		GPUShader* VertexShader = nullptr;
+		GPUShader* PixelShader = nullptr;
+		GPUShader* ComputeShader = nullptr;
 
 		bool DepthEnable;
 		bool DepthWriteEnable;
 		bool DepthClipEnable;
-		EComparisonFunc DepthFunc;
-		ETextureFormat DepthFormat;
+		ComparisonFunc DepthFunc;
+		PixelFormat DepthFormat;
 
-		bool  StencilEnable;
-		struct StencilState {
+		bool StencilEnable;
+		struct StencilState 
+		{
 			uint8 ReadMask;
 			uint8 WriteMask;
-			EComparisonFunc Func;
-			EStencilOp FailOp;
-			EStencilOp DepthFailOp;
-			EStencilOp PassOp;
+			ComparisonFunc Func;
+			StencilOp FailOp;
+			StencilOp DepthFailOp;
+			StencilOp PassOp;
 		};
 
 		StencilState FrontStencil;
 		StencilState BackStencil;
 
-		EPrimitiveTopology PrimitiveTopology;
-		ECullMode CullMode;
-		EFrontFace FrontFace;
+		PrimitiveTopology PrimitiveTopology;
+		CullMode CullMode;
+		FrontFace FrontFace;
 
 		bool Wireframe;
 		uint8 NumRenderTargets;
 
-		struct RenderTarget {
-			ETextureFormat Format;
+		struct RenderTarget 
+		{
+			PixelFormat Format;
 
 			bool EnableBlend = false;
-			EBlendFactor SrcBlend = EBlendFactor::One;
-			EBlendFactor DstBlend = EBlendFactor::Zero;
-			EBlendOp BlendOp = EBlendOp::Add;
-			EBlendFactor SrcBlendAlpha = EBlendFactor::One;
-			EBlendFactor DstBlendAlpha = EBlendFactor::Zero;
-			EBlendOp BlendOpAlpha = EBlendOp::Add;
-			EColorMask ColorMask = EColorMask::All;
+			BlendFactor SrcBlend = BlendFactor::One;
+			BlendFactor DstBlend = BlendFactor::Zero;
+			BlendOperation BlendOp = BlendOperation::Add;
+			BlendFactor SrcBlendAlpha = BlendFactor::One;
+			BlendFactor DstBlendAlpha = BlendFactor::Zero;
+			BlendOperation BlendOpAlpha = BlendOperation::Add;
+			ColorMask ColorMask = ColorMask::All;
 		} RenderTargets[8];
 	};
 
-	class RHIPipelineState : public IRefCounted 
+	class GPUPipelineState : public RefCounted 
 	{
-	public:
-		RHIPipelineState() = default;
+	protected:
+		GPUPipelineState() = default;
 	};
-
-	using PipelineStateRHIRef = TRef<RHIPipelineState>;
 }

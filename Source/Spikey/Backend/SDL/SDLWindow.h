@@ -19,7 +19,7 @@ namespace Spikey {
 		virtual bool IsMinimized() const override { return m_Minimized; }
 
 		virtual void* GetNativeWindow() override { return (void*)(&m_Native); }
-		virtual void Tick(float32 deltaTime) override;
+		virtual void Tick(float deltaTime) override;
 
 		virtual void BindKeyDelegate(KeyDelegate&& delegate) override;
 		virtual void BindMouseDeletage(MouseDelegate&& delegate) override;

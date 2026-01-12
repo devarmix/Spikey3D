@@ -1,164 +1,195 @@
 #pragma once
+
 #include <Engine/Core/Common.h>
 
-namespace Spikey {
-
-	class IRefCounted {
+namespace Spikey 
+{
+	class RefCounted 
+	{
 	public:
-		virtual ~IRefCounted() = default;
+		virtual ~RefCounted() = default;
 
-		virtual void AddRef() const {
-			++m_Counter;
+		virtual uint32 AddRef() const 
+		{
+			return ++m_Counter;
 		}
 
-		virtual void Release() const {
-			if (--m_Counter == 0) {
+		virtual uint32 Release() const 
+		{
+			uint32 count = --m_Counter;
+			if (count == 0)
+			{
 				delete this;
 			}
+			return count;
 		}
 
 		uint32 GetRefCount() const { return m_Counter.load(); }
+
 	protected:
 		mutable std::atomic<uint32> m_Counter{ 0 };
 	};
 
-	// for IRefCounted derived classes
+	// UE4 like reference counting
 	template<typename T>
-	class TRefCountPtr {
+	class TRefCountPtr
+	{
 	public:
-		TRefCountPtr() : m_Ptr(nullptr) {}
-		TRefCountPtr(T* ptr) {
-			m_Ptr = ptr;
-			if (m_Ptr) {
-				m_Ptr->AddRef();
+		TRefCountPtr() 
+			: m_Reference(nullptr)
+		{
+		}
+
+		TRefCountPtr(T* ptr, bool addRef = true) 
+		{
+			m_Reference = ptr;
+			if (m_Reference && addRef)
+			{
+				m_Reference->AddRef();
 			}
 		}
 
-		TRefCountPtr(const TRefCountPtr& copy) {
-			m_Ptr = copy.m_Ptr;
-			if (m_Ptr) {
-				m_Ptr->AddRef();
+		TRefCountPtr(const TRefCountPtr& copy) 
+		{
+			m_Reference = copy.m_Reference;
+			if (m_Reference)
+			{
+				m_Reference->AddRef();
 			}
 		}
 
 		template<typename CopyT>
-		explicit TRefCountPtr(const TRefCountPtr<CopyT>& copy) {
-			m_Ptr = static_cast<T*>(copy.Get());
-			if (m_Ptr) {
-				m_Ptr->AddRef();
+		explicit TRefCountPtr(const TRefCountPtr<CopyT>& copy) 
+		{
+			m_Reference = static_cast<T*>(copy.Get());
+			if (m_Reference)
+			{
+				m_Reference->AddRef();
 			}
 		}
 
-		template<typename CopyT>
-		TRefCountPtr<CopyT> As() const {
-			return TRefCountPtr<CopyT>(*this);
-		}
-
-		TRefCountPtr(TRefCountPtr&& move) noexcept {
-			m_Ptr = move.m_Ptr;
-			move.m_Ptr = nullptr;
+		TRefCountPtr(TRefCountPtr&& move) noexcept 
+		{
+			m_Reference = move.m_Reference;
+			move.m_Reference = nullptr;
 		}
 
 		template<typename MoveT>
-		explicit TRefCountPtr(TRefCountPtr<MoveT>&& move) {
-			m_Ptr = static_cast<T*>(move.Get());
-			move.m_Ptr = nullptr;
+		explicit TRefCountPtr(TRefCountPtr<MoveT>&& move) 
+		{
+			m_Reference = static_cast<T*>(move.Get());
+			move.m_Reference = nullptr;
 		}
 
-		~TRefCountPtr() {
-			if (m_Ptr) {
-				m_Ptr->Release();
+		~TRefCountPtr() 
+		{
+			if (m_Reference)
+			{
+				m_Reference->Release();
 			}
 		}
 
-		TRefCountPtr& operator=(T* ptr) {
-			T* old = m_Ptr;
-			m_Ptr = ptr;
+		template<typename... TArgs>
+		static TRefCountPtr Create(TArgs&&... args)
+		{
+			return TRefCountPtr<T>(new T(std::forward<TArgs>(args)...));
+		}
 
-			if (m_Ptr) {
-				m_Ptr->AddRef();
-			}
-			if (old) {
-				old->Release();
-			}
+		TRefCountPtr& operator=(T* ptr) 
+		{
+			T* oldReference = m_Reference;
+			m_Reference = ptr;
 
+			if (m_Reference)
+			{
+				m_Reference->AddRef();
+			}
+			if (oldReference)
+			{
+				oldReference->Release();
+			}
 			return *this;
 		}
 
-		TRefCountPtr& operator=(const TRefCountPtr& other) {
-			T* old = m_Ptr;
-			m_Ptr = other.m_Ptr;
-
-			if (m_Ptr) {
-				m_Ptr->AddRef();
-			}
-			if (old) {
-				old->Release();
-			}
-
-			return *this;
+		TRefCountPtr& operator=(const TRefCountPtr& other) 
+		{
+			return *this = other.m_Reference;
 		}
 
 		template<typename CopyT>
-		TRefCountPtr& operator=(const TRefCountPtr<CopyT>& other) {
-			T* old = m_Ptr;
-			m_Ptr = (T*)other.Get();
-
-			if (m_Ptr) {
-				m_Ptr->AddRef();
-			}
-			if (old) {
-				old->Release();
-			}
-
-			return *this;
+		TRefCountPtr& operator=(const TRefCountPtr<CopyT>& other) 
+		{
+			return *this = other.Get();
 		}
 
+		TRefCountPtr& operator=(TRefCountPtr&& move) 
+		{
+			if (this != &move)
+			{
+				T* oldReference = m_Reference;
+				m_Reference = move.m_Reference;
+				move.m_Reference = nullptr;
 
-		TRefCountPtr& operator=(TRefCountPtr&& move) {
-			if (this != &move) {
-
-				T* old = m_Ptr;
-				m_Ptr = move.m_Ptr;
-				move.m_Ptr = nullptr;
-
-				if (old) {
-					old->Release();
+				if (oldReference)
+				{
+					oldReference->Release();
 				}
 			}
-
 			return *this;
 		}
 
-		T* Get() const { return m_Ptr; }
-
-		T* operator->() const {
-			return m_Ptr;
+		T* operator->() const 
+		{
+			return m_Reference;
 		}
 
-		operator T* () const {
-			return m_Ptr;
+		operator T*() const 
+		{
+			return m_Reference;
 		}
 
-		bool operator==(const TRef<T>& other) const {
-			return m_Ptr == other.m_Ptr;
+		bool operator==(const TRefCountPtr<T>& other) const 
+		{
+			return m_Reference == other.m_Reference;
 		}
 
-		bool operator==(T* other) const {
-			return m_Ptr == other;
+		bool operator==(T* other) const 
+		{
+			return m_Reference == other;
 		}
 
-		bool Valid() { return m_Ptr != nullptr; }
+		T* Get() const 
+		{ 
+			return m_Reference;
+		}
+
+		bool Valid() const
+		{
+			return m_Reference != nullptr;
+		}
+
+		uint32 GetRefCount()
+		{
+			uint32 result = 0;
+			if (m_Reference)
+			{
+				result = m_Reference->GetRefCount();
+				assert(result > 0);
+			}
+			return result;
+		}
+
+		void Swap(TRefCountPtr& other)
+		{
+			T* oldReference = m_Reference;
+			m_Reference = other.m_Reference;
+			other.m_Reference = oldReference;
+		}
 
 	private:
-		mutable T* m_Ptr;
+		mutable T* m_Reference;
 
 		template<typename OtherT>
 		friend class TRefCountPtr;
 	};
-
-	template<typename T, typename... TArgs>
-	TRefCountPtr<T> CreateRefCounted(TArgs&&... args) {
-		return TRefCountPtr<T>(new T(std::forward<TArgs>(args)...));
-	}
 }

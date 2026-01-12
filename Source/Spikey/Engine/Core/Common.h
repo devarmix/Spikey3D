@@ -48,17 +48,39 @@ inline type operator&(type a, type b) { return (type)((std::underlying_type_t<ty
 inline type operator^(type a, type b) { return (type)((std::underlying_type_t<type>)a ^ (std::underlying_type_t<type>)b); }         \
 inline type& operator|=(type& a, type b) { return (type&)((std::underlying_type_t<type>&)a |= (std::underlying_type_t<type>&)b); }  \
 inline type& operator&=(type& a, type b) { return (type&)((std::underlying_type_t<type>&)a &= (std::underlying_type_t<type>&)b); }  \
-inline type& operator^=(type& a, type b) { return (type&)((std::underlying_type_t<type>&)a ^= (std::underlying_type_t<type>&)b); } 
+inline type& operator^=(type& a, type b) { return (type&)((std::underlying_type_t<type>&)a ^= (std::underlying_type_t<type>&)b); }
 
 template<typename T>
-inline bool EnumHasAllFlags(T flags, T contains) {
+inline bool EnumHasAllFlags(T flags, T contains)
+{
 	return ((std::underlying_type_t<T>)flags & (std::underlying_type_t<T>)contains) == ((std::underlying_type_t<T>)contains);
 }
 
 template<typename T>
-inline bool EnumHasAnyFlags(T flags, T contains) {
+inline bool EnumHasAnyFlags(T flags, T contains)
+{
 	return ((std::underlying_type_t<T>)flags & (std::underlying_type_t<T>)contains) != 0;
 }
+
+// ------------ common types ---------------
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <Glm/glm.hpp>
+#include <Glm/gtx/transform.hpp>
+#include <Glm/gtx/quaternion.hpp>
+
+using Quaternion = glm::quat;
+using Vec2 = glm::vec2;
+using Vec2Int = glm::ivec2;
+using Vec2Uint = glm::uvec2;
+using Vec3 = glm::vec3;
+using Vec3Int = glm::ivec3;
+using Vec3Uint = glm::uvec3;
+using Vec4 = glm::vec4;
+using Vec4Int = glm::ivec4;
+using Mat2x2 = glm::mat2;
+using Mat3x3 = glm::mat3;
+using Mat4x4 = glm::mat4;
 
 using uint32 = unsigned int;
 using uint64 = unsigned long long;
@@ -69,14 +91,12 @@ using int16 = short;
 using uint8 = unsigned char;
 using int8 = char;
 
-using float32 = float;
-using float64 = double;
-
 template<typename T>
 using TUniquePtr = std::unique_ptr<T>;
 
 template<typename T, typename... Args>
-constexpr TUniquePtr<T> CreateUnique(Args&&... args) {
+constexpr TUniquePtr<T> CreateUnique(Args&&... args)
+{
 	return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
@@ -84,9 +104,17 @@ template<typename T>
 using TSharedPtr = std::shared_ptr<T>;
 
 template<typename T, typename... Args>
-constexpr TSharedPtr<T> CreateShared(Args&&... args) {
+constexpr TSharedPtr<T> CreateShared(Args&&... args)
+{
 	return std::make_shared<T>(std::forward<Args>(args)...);
 }
 
 template<typename T>
 using TWeakPtr = std::weak_ptr<T>;
+
+template<typename T>
+constexpr void HashCombine(uint64& seed, const T& v) 
+{
+	std::hash<T> hasher;
+	seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}

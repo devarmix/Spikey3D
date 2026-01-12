@@ -9,8 +9,7 @@ project(Spikey3D)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(OutputDir "${CMAKE_CURRENT_SOURCE_DIR}/Binaries")
-set(THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Source/ThirdParty")
+set(SPIKEY_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # taken from https://github.com/TheLartians/GroupSourcesByFolder.cmake/blob/master/CMakeLists.txt
@@ -40,46 +39,26 @@ function(GroupSources target)
     endif()
 endfunction()
 
-# third party build dir
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OutputDir}/ThirdParty/Lib")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OutputDir}/ThirdParty/Lib")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OutputDir}/ThirdParty/Bin")
-
-option(WITH_VULKAN_RHI "Build engine with Vulkan backend" ON)
-option(WITH_SDL_BACKEND "Build engine with SDL3 backend" ON)
-option(WITH_TRACY_PROFILER "Build engine with tracy profiler integrated" ON)
-option(WITH_EDITOR "Build editor" ON)
+option(SPIKEY_PROFILER "Build Spikey with tracy profilter" ON)
+option(SPIKEY_EDITOR "Build Spikey editor" ON)
 
 if (WIN32)
-    message(STATUS "Building for Win32")
+    set(PLATFORM_NAME "Win32")
     add_compile_definitions(BUILD_PLATFORM_WIN32)
+else()
+    message(FATAL_ERROR "Non Win32 platforms are not yet supported!")
 endif()
 
-if (WITH_VULKAN_RHI)
-    message(STATUS "Building with Vulkan RHI")
-    add_compile_definitions(BUILD_VULKAN_RHI)
-
-    if (NOT DEFINED "ENV{VULKAN_SDK}")
-         message(FATAL_ERROR "No Vulkan SDK found! Please, install latest version of Vulkan SDK 1.4 and try again")
-    else()
-         set(VULKAN_SDK_PATH "$ENV{VULKAN_SDK}")
-         message(STATUS "Found Vulkan SDK at: ${VULKAN_SDK_PATH}")
-    endif()
+if (SPIKEY_PROFILER)
+    add_compile_definitions(BUILD_WITH_PROFILER)
 endif()
 
-if (WITH_SDL_BACKEND)
-    message(STATUS "Building with SDL3 backend")
-    add_compile_definitions(BUILD_SDL_BACKEND)
-endif()
-
-if (WITH_TRACY_PROFILER)
-    message(STATUS "Building with Tracy profiler")
-    add_compile_definitions(BUILD_TRACY_PROFILER)
-endif()
-
-if (WITH_EDITOR)
-    add_subdirectory(Source/Editor)
-endif()
+set(BINARIES_DIR "${SPIKEY_ROOT_DIR}/Binaries/${PLATFORM_NAME}")
+set(THIRD_PARTY_DIR "${SPIKEY_ROOT_DIR}/Source/ThirdParty")
 
 add_subdirectory(Source/ThirdParty/ImGui)
 add_subdirectory(Source/Spikey)
+
+if (SPIKEY_EDITOR)
+    add_subdirectory(Source/Editor)
+endif()

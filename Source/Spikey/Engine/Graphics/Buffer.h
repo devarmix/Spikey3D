@@ -1,37 +1,58 @@
 #pragma once
-#include <Engine/Graphics/RHIResource.h>
 
-namespace Spikey {
+#include <Engine/Core/Common.h>
+#include <Engine/Core/RefCounted.h>
 
-	enum class EBufferFlags : uint8
+namespace Spikey 
+{
+	enum class BufferFlags : uint8
 	{
 		None = 0,
-		Constant     = BIT(0),
-		Storage      = BIT(1),
-		Indirect     = BIT(2),
-		Index        = BIT(3),
-	    Upload       = BIT(4),
-		ReadBack     = BIT(5),
-		GPUAddress   = BIT(6)
+		ShaderResource = BIT(0),
+		Storage        = BIT(1),
+		Indirect       = BIT(2),
+		IndexBuffer    = BIT(3),
+		VertexBuffer   = BIT(4),
+	    Upload         = BIT(5),
+		ReadBack       = BIT(6),
+		GPUAddress     = BIT(7)
 	};
-	ENUM_FLAGS_OPERATORS(EBufferFlags);
+	ENUM_FLAGS_OPERATORS(BufferFlags);
 
-	class RHIBuffer : public IRHIResource
+	struct BufferRange
 	{
-	public:
-		RHIBuffer(uint64 size, EBufferFlags flags)
-			: m_Size(size), m_Flags(flags)
+		uint64 ByteSize;
+		uint64 ByteOffset;
+	};
+
+	struct BufferDesc
+	{
+		uint64      ByteSize;
+		uint32      Stride; // size of a single element
+		BufferFlags Flags;
+	};
+
+	class GPUBuffer : public RefCounted
+	{
+	protected:
+		GPUBuffer(const BufferDesc& desc)
+			: m_Desc(desc)
 		{
 		}
 
-		uint64        GetSize() const { return m_Size; }
-		EBufferFlags  GetUsage() const { return m_Flags; }
+		BufferDesc m_Desc;
+
+	public:
+		uint64 GetSize() const { return m_Desc.ByteSize; }
+		uint32 GetStride() const { return m_Desc.Stride; }
+		BufferFlags GetFlags() const { return m_Desc.Flags; }
+
+		const BufferDesc& GetDesc()
+		{
+			return m_Desc;
+		}
+
 		virtual void* GetMappedData() const = 0;
-
-	private:
-		uint64       m_Size;
-		EBufferFlags m_Flags;
+		virtual void* GetNative() const = 0;
 	};
-
-	using BufferRHIRef = TRef<RHIBuffer>;
 }

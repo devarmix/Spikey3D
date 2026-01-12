@@ -6,37 +6,52 @@
 
 namespace Spikey {
 
-	struct ApplicationConfig {
+	struct ApplicationConfig 
+	{
 		WindowDesc WindowConfig;
 
 		bool EnableGUI;
 		bool EnableDocking;
 	};
 
-	class IApplication {
+	class ApplicationBase
+	{
 	public:
-		IApplication(const ApplicationConfig& config);
-		virtual ~IApplication() = default;
 
-		void Tick();
-		void Destroy();
-
-		IWindow& GetWindow() const { return *m_Window; }
-		RenderThread& GetRenderThread() { return m_RenderThread; }
-		const ApplicationConfig& GetConfig() const { return m_Config; }
-
-		static IApplication& Get() { CHECK(s_Instance); return *s_Instance; }
-
-	protected:
-		virtual void OnTick(float32 deltaTime) = 0;
+		virtual void OnUpdate() = 0;
 
 	private:
-		static IApplication* s_Instance;
-
-		IWindow* m_Window;
-		RenderThread m_RenderThread;
-		ApplicationConfig m_Config;
 	};
 
-	extern IApplication* CreateApplication(int argc, char* argv[]);
+	class Engine
+	{
+	public:
+		static uint64 FrameCounter;
+		static std::string Path1;
+		static std::string Path2;
+		static std::string Path3;
+
+		static IWindow* Window;
+
+		static int32 Main(int32 argc, char* argv[])
+		{
+
+		}
+
+		void Exit();
+		void RequestExit();
+		void Crash();
+
+		bool IsEditor();
+		bool IsPlayMode();
+
+
+		void OnUpdate();
+		void OnPhysics();
+	};
+
+	extern ApplicationBase* CreateApplication(int argc, char* argv[])
+	{
+		Engine::FrameCounter;
+	}
 }
