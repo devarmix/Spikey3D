@@ -1,23 +1,97 @@
 #pragma once
 
-#include <Vulkan/VulkanCommon.h>
-#include <Graphics/GPUDevice.h>
+#include <Platform/Vulkan/VulkanCommon.h>
+#include <Engine/Graphics/GPUDevice.h>
 
 #if (VK_HEADER_VERSION < 318)
 #error "Vulkan SDK version 1.4.318 or later is required to compile Spikey3D"
 #endif
 
-namespace Spikey::Vulkan 
+namespace Spikey::Vulkan
 {
-	class  VulkanCommandContext;
-	class  VulkanDevice;
-	class  VulkanTexture;
-	class  VulkanBuffer;
-	class  VulkanSamplerState;
-	class  VulkanPipelineState;
-	struct VulkanPSOLayout;
-	struct VulkanPSOLayoutHash;
+	class VulkanCommandContext;
+	class VulkanDevice;
+	class VulkanTexture;
+	class VulkanTextureView;
+	class VulkanBuffer;
+	class VulkanSamplerState;
+	class VulkanPipelineState;
 
+	struct VulkanPSOLayout
+	{
+		VkPipelineLayout Layout;
+		VkDescriptorSetLayout SetLayout;
+	};
+
+	struct VulkanPSOLayoutHash
+	{
+		std::vector<VkDescriptorSetLayoutBinding> Bindings;
+		VkPushConstantRange PushConstants;
+		uint64 Hash;
+
+		bool operator==(const VulkanPSOLayoutHash& other) const
+		{
+			if (Hash != other.Hash)
+				return false;
+			if (Bindings.size() != other.Bindings.size())
+				return false;
+			if (
+				PushConstants.size != other.PushConstants.size ||
+				PushConstants.offset != other.PushConstants.offset ||
+				PushConstants.stageFlags != other.PushConstants.stageFlags
+				)
+				return false;
+
+			for (uint32 i = 0; i < Bindings.size(); i++)
+			{
+				auto& b1 = Bindings[i];
+				auto& b2 = other.Bindings[i];
+
+				if (
+					b1.binding != b2.binding ||
+					b1.descriptorCount != b2.descriptorCount ||
+					b1.descriptorType != b2.descriptorType ||
+					b1.stageFlags != b2.stageFlags ||
+					b1.pImmutableSamplers != b2.pImmutableSamplers
+					)
+					return false;
+			}
+
+			return true;
+		}
+
+		void ComputeHash()
+		{
+			Hash = 0;
+			for (uint32 i = 0; i < Bindings.size(); i++)
+			{
+				auto& b = Bindings[i];
+				HashCombine(Hash, b.binding);
+				HashCombine(Hash, b.descriptorCount);
+				HashCombine(Hash, b.descriptorType);
+				HashCombine(Hash, b.stageFlags);
+			}
+
+			HashCombine(Hash, PushConstants.size);
+			HashCombine(Hash, PushConstants.offset);
+			HashCombine(Hash, PushConstants.stageFlags);
+		}
+	};
+}
+
+namespace std
+{
+	template<> struct hash<Spikey::Vulkan::VulkanPSOLayoutHash>
+	{
+		constexpr size_t operator()(const Spikey::Vulkan::VulkanPSOLayoutHash& key) const
+		{
+			return key.Hash;
+		}
+	};
+}
+
+namespace Spikey::Vulkan
+{
 	class VulkanDeletionQueue
 	{
 	public:
@@ -31,7 +105,8 @@ namespace Spikey::Vulkan
 			DescriptorPool
 		};
 
-		VulkanDeletionQueue()
+		VulkanDeletionQueue(VulkanDevice* device)
+			: m_Device(device)
 		{
 		}
 
@@ -54,7 +129,7 @@ namespace Spikey::Vulkan
 			EnqueueGeneric(type, (uint64)handle, allocation);
 		}
 
-		void ReleaseResources(bool immediate = false, VulkanDevice* device);
+		void ReleaseResources(bool immediate = false);
 
 	private:
 		struct Entry
@@ -65,6 +140,7 @@ namespace Spikey::Vulkan
 			uint64        Handle;
 		};
 
+		VulkanDevice*      m_Device;
 		std::mutex         m_Mutex;
 		std::deque<Entry>  m_Entries;
 
@@ -119,7 +195,7 @@ namespace Spikey::Vulkan
 
 		virtual GPUCommandContext* GetMainContext() override
 		{
-			return MainContext;
+			return reinterpret_cast<GPUCommandContext*>(MainContext);
 		}
 
 		virtual void WaitGPUIdle() override
@@ -254,12 +330,7 @@ namespace Spikey::Vulkan
 	{
 	public:
 		VulkanCmdBufferManager(VkQueue queue, uint32 queueFamilyIndex, VulkanDevice* device);
-
-		~VulkanCmdBufferManager()
-		{
-			vkDestroyCommandPool(m_Device->GetDeviceHandle(), m_Pool, nullptr);
-			vkDestroySemaphore(m_Device->GetDeviceHandle(), m_TrackingSemaphore, nullptr);
-		}
+		~VulkanCmdBufferManager();
 
 		// FIXME: when submiting, set bound pipeline states in the comamnd context as dirty
 		void                 SubmitActiveCmd(VkFence fence = VK_NULL_HANDLE);
@@ -341,7 +412,7 @@ namespace Spikey::Vulkan
 	public:
 		VkAccessFlags2 Access;
 
-		VulkanBuffer(const BufferDesc& desc, VulkanDevice& device);
+		VulkanBuffer(const BufferDesc& desc, VulkanDevice* device);
 		virtual ~VulkanBuffer() override;
 
 		virtual void* GetMappedData() const override { return m_MappedData; }
@@ -352,7 +423,7 @@ namespace Spikey::Vulkan
 		virtual void DescriptorAsUniformBuffer(VulkanCommandContext* context, VkBuffer& buffer, VkDeviceSize& offset, VkDeviceSize& range) override;
 
 	private:
-		VulkanDevice& m_Device;
+		VulkanDevice* m_Device;
 		VkBuffer      m_Buffer;
 		VmaAllocation m_Allocation;
 		void*         m_MappedData;
@@ -417,7 +488,7 @@ namespace Spikey::Vulkan
 		VkImageView PartialView;
 		VkImageLayout LayoutSRV;
 		VkImageLayout LayoutRTV;
-		VkImageSubresourceRange Subresources;
+		VkImageSubresourceRange Subresources = {};
 		VkImageViewType ViewType;
 		VulkanDevice* Device;
 
@@ -515,11 +586,7 @@ namespace Spikey::Vulkan
 	{
 	public:
 		VulkanSwapchain(uint32 width, uint32 height, PixelFormat desiredFormat, SDL_Window* window, VkQueue presentQueue, VulkanDevice* device);
-
-		virtual ~VulkanSwapchain() override
-		{
-			ReleaseSwapchainResources(true);
-		}
+		virtual ~VulkanSwapchain() override;
 
 		virtual void Resize(uint32 width, uint32 height) override;
 		virtual void Present(bool vsync, bool isPrimary) override;
@@ -534,8 +601,8 @@ namespace Spikey::Vulkan
 
 	private:
 		VulkanDevice* m_Device;
-		VkSurfaceKHR m_Surface;
-		VkSwapchainKHR m_Swapchain;
+		VkSurfaceKHR m_Surface = VK_NULL_HANDLE;
+		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue;
 		SDL_Window* m_WindowHandle;
 
@@ -661,75 +728,5 @@ namespace Spikey::Vulkan
 		VkPipelineLayout      m_Layout;
 		VkPipeline            m_Pipeline;
 		VkDescriptorSetLayout m_SetLayout;
-	};
-
-	struct VulkanPSOLayout
-	{
-		VkPipelineLayout Layout;
-		VkDescriptorSetLayout SetLayout;
-	};
-
-	struct VulkanPSOLayoutHash
-	{
-		std::vector<VkDescriptorSetLayoutBinding> Bindings;
-		VkPushConstantRange PushConstants;
-		uint64 Hash;
-
-		bool operator=(const VulkanPSOLayoutHash& other) const
-		{
-			if (Hash != other.Hash)
-				return false;
-			if (Bindings.size() != other.Bindings.size())
-				return false;
-			if (
-				PushConstants.size != other.PushConstants.size ||
-				PushConstants.offset != other.PushConstants.offset ||
-				PushConstants.stageFlags != other.PushConstants.stageFlags
-				)
-				return false;
-
-			for (uint32 i = 0; i < Bindings.size(); i++)
-			{
-				auto& b1 = Bindings[i];
-				auto& b2 = other.Bindings[i];
-
-				if (
-					b1.binding != b2.binding ||
-					b1.descriptorCount != b2.descriptorCount ||
-					b1.descriptorType != b2.descriptorType ||
-					b1.stageFlags != b2.stageFlags ||
-					b1.pImmutableSamplers != b2.pImmutableSamplers
-					)
-					return false;
-			}
-		}
-
-		void ComputeHash()
-		{
-			Hash = 0;
-			for (uint32 i = 0; i < Bindings.size(); i++)
-			{
-				auto& b = Bindings[i];
-				HashCombine(Hash, b.binding);
-				HashCombine(Hash, b.descriptorCount);
-				HashCombine(Hash, b.descriptorType);
-				HashCombine(Hash, b.stageFlags);
-			}
-
-			HashCombine(Hash, PushConstants.size);
-			HashCombine(Hash, PushConstants.offset);
-			HashCombine(Hash, PushConstants.stageFlags);
-		}
-	};
-}
-
-namespace std 
-{
-	template<> struct hash<Spikey::Vulkan::VulkanPSOLayoutHash>
-	{
-		constexpr size_t operator()(const Spikey::Vulkan::VulkanPSOLayoutHash& key) const
-		{
-			return key.Hash;
-		}
 	};
 }

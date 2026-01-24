@@ -1,11 +1,6 @@
 #pragma once
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <Glm/glm.hpp>
-#include <Glm/gtx/transform.hpp>
-#include <Glm/gtx/quaternion.hpp>
-
-#include <Core/Common.h>
+#include <Engine/Core/Common.h>
 
 struct PackedHalf {
 	uint32 Data[2];

@@ -14,10 +14,10 @@
 #include <filesystem>
 #include <type_traits>
 #include <assert.h>
-#include <Core/Log.h>
+#include <Engine/Core/Log.h>
 
-#if BUILD_TRACY_PROFILER
-#include <tracy/Tracy.hpp>
+#if WITH_PROFILER
+#include <Tracy/Tracy.hpp>
 
 #define PROFILE_SCOPED ZoneScoped
 #define PROFILE_SCOPED_NAMED(x) ZoneScopedN(x)
@@ -39,7 +39,6 @@
 
 #define BIND_FUNCTION(x) std::bind(&x, this, std::placeholders::_1)
 #define BIT(x) (1 << x)
-#define CHECK(expr) assert(expr)
 
 #define ENUM_FLAGS_OPERATORS(type)                                                                                                  \
 inline type operator~(type a) { return (type)~(std::underlying_type_t<type>)a;}                                                     \

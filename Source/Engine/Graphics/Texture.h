@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Core/Common.h>
-#include <Core/RefCounted.h>
-#include <Graphics/GraphicsTypes.h>
+#include <Engine/Core/Common.h>
+#include <Engine/Core/RefCounted.h>
+#include <Engine/Graphics/GraphicsTypes.h>
 
 namespace Spikey
 {
@@ -67,8 +67,6 @@ namespace Spikey
 
 		BC1_UNORM,
 		BC1_UNORM_SRGB,
-		BC2_UNORM,
-		BC2_UNORM_SRGB,
 		BC3_UNORM,
 		BC3_UNORM_SRGB,
 		BC4_UNORM,
@@ -85,16 +83,15 @@ namespace Spikey
 
 	struct PixelFormatInfo
 	{
-		static uint32 SizeInBits(PixelFormat format);
-		static bool   HasAlpha(PixelFormat format);
-		static bool   HasDepth(PixelFormat format);
-		static bool   HasStencil(PixelFormat format);
-		static bool   HasAlpha(PixelFormat format);
-		static bool   IsCompressed(PixelFormat format);
-		static bool   IsSRGB(PixelFormat format);
-		static bool   IsSigned(PixelFormat format);
-		static uint8  BytesPerBlock(PixelFormat format);
-		static uint8  BlockSize(PixelFormat format);
+		static uint32 SizeInBytes(PixelFormat format);
+		static uint32 BlockSize(PixelFormat format);
+
+		static bool HasAlpha(PixelFormat format);
+		static bool HasDepth(PixelFormat format);
+		static bool HasStencil(PixelFormat format);
+		static bool IsCompressed(PixelFormat format);
+		static bool IsSRGB(PixelFormat format);
+		static bool IsSigned(PixelFormat format);
 	};
 
 	enum class TextureDimension : uint8

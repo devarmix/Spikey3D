@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Core/Common.h>
+#include <Engine/Core/Common.h>
 #include <SDL3/SDL.h>
 
 namespace Spikey
@@ -23,7 +23,6 @@ namespace Spikey
 		bool Fullscreen = false;
 		bool HasBorder = true;
 		bool ShowInTaskbar = true;
-		bool AllowInput = true;
 		bool AllowDragAndDrop = false;
 		bool AllowResize = true;
 	};

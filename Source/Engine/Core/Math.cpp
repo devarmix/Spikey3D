@@ -1,4 +1,4 @@
-#include <Core/Math.h>
+#include <Engine/Core/Math.h>
 
 float Spikey::Math::Clamp(float value, float min, float max) {
 
@@ -255,10 +255,6 @@ Vec4 Spikey::Math::MoveTowards(const Vec4& current, const Vec4& target, float ma
 
 	float num6 = std::sqrt(num5);
 	return Vec4(current.x + num / num6 * maxDistanceDelta, current.y + num2 / num6 * maxDistanceDelta, current.z + num3 / num6 * maxDistanceDelta, current.w + num4 / num6 * maxDistanceDelta);
-}
-
-void Spikey::Math::HashCombine(uint64& hash1, uint64 hash2) {
-	hash1 ^= hash2 + 0x9e3779b9 + (hash1 << 6) + (hash1 >> 2);
 }
 
 uint32 Spikey::Math::PackUnsignedVec4ToUint(const Vec4& v) {

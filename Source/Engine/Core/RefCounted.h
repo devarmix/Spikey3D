@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Core/Common.h>
+#include <Engine/Core/Common.h>
 
 namespace Spikey 
 {
@@ -87,12 +87,6 @@ namespace Spikey
 			{
 				m_Reference->Release();
 			}
-		}
-
-		template<typename... TArgs>
-		static TRefCountPtr Create(TArgs&&... args)
-		{
-			return TRefCountPtr<T>(new T(std::forward<TArgs>(args)...));
 		}
 
 		TRefCountPtr& operator=(T* ptr) 

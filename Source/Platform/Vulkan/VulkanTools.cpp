@@ -1,8 +1,8 @@
-#include <Vulkan/VulkanTools.h>
+#include <Platform/Vulkan/VulkanTools.h>
 
 namespace Spikey::Vulkan
 {
-	VkFormat VulkanTools::PixelFormatToVkFormat[68] =
+	VkFormat VulkanTools::PixelFormatToVkFormat[66] =
 	{
         VK_FORMAT_UNDEFINED,
         VK_FORMAT_R8_UINT,
@@ -60,8 +60,6 @@ namespace Spikey::Vulkan
         VK_FORMAT_D32_SFLOAT_S8_UINT,
         VK_FORMAT_BC1_RGBA_UNORM_BLOCK,
         VK_FORMAT_BC1_RGBA_SRGB_BLOCK,
-        VK_FORMAT_BC2_UNORM_BLOCK,
-        VK_FORMAT_BC2_SRGB_BLOCK,
         VK_FORMAT_BC3_UNORM_BLOCK,
         VK_FORMAT_BC3_SRGB_BLOCK,
         VK_FORMAT_BC4_UNORM_BLOCK,

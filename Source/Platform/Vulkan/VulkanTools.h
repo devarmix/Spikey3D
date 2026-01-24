@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Vulkan/VulkanCommon.h>
-#include <Graphics/Texture.h>
-#include <Graphics/Shader.h>
+#include <Platform/Vulkan/VulkanCommon.h>
+#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/Shader.h>
 
 namespace Spikey::Vulkan
 {

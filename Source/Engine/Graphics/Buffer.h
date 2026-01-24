@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Core/Common.h>
-#include <Core/RefCounted.h>
+#include <Engine/Core/Common.h>
+#include <Engine/Core/RefCounted.h>
 
 namespace Spikey 
 {

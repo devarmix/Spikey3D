@@ -1,9 +1,9 @@
-#include <Core/Window.h>
-#include <Core/Application.h>
-#include <Core/Input.h>
+#include <Engine/Core/Window.h>
+#include <Engine/Core/Application.h>
+#include <Engine/Core/Input.h>
 
 #include <fstream>
-#include <json.hpp>
+#include <NlohmannJson/json.hpp>
 using namespace nlohmann;
 
 namespace Spikey
@@ -388,7 +388,7 @@ namespace Spikey
 		std::ifstream file(path);
 		if (!file.is_open())
 		{
-			ENGINE_ERROR("Json action context: {} cannot be opened!", path.c_str());
+			ENGINE_ERROR("Json action context: {} cannot be opened!", path.string());
 			return false;
 		}
 
@@ -407,7 +407,7 @@ namespace Spikey
 		}
 		catch (const std::exception& error)
 		{
-			ENGINE_ERROR("Invalid json action context: {0}, error: {1}", path.c_str(), error.what());
+			ENGINE_ERROR("Invalid json action context: {0}, error: {1}", path.string(), error.what());
 			m_ActionMap.clear();
 
 			return false;
@@ -428,13 +428,13 @@ namespace Spikey
 				switch (trigger.Event)
 				{
 				case InputTrigger::Pressed:
-					triggerValue = (!trigger.LastValue && s_InputState[trigger.TriggerKey]) ? 1 : 0;
+					triggerValue = (!trigger.LastValue && s_InputState[trigger.TriggerKey]) ? 1.f : 0.f;
 					break;
 				case InputTrigger::Released:
-					triggerValue = (trigger.LastValue && !s_InputState[trigger.TriggerKey]) ? 1 : 0;
+					triggerValue = (trigger.LastValue && !s_InputState[trigger.TriggerKey]) ? 1.f : 0.f;
 					break;
 				case InputTrigger::Down:
-					triggerValue = (s_InputState[trigger.TriggerKey] > 0) ? 1 : 0;
+					triggerValue = (s_InputState[trigger.TriggerKey] > 0) ? 1.f : 0.f;
 					break;
 				default:
 					triggerValue = s_InputState[trigger.TriggerKey];
@@ -480,7 +480,7 @@ namespace Spikey
 		if (!settings.HasBorder)
 			windowFlags |= SDL_WINDOW_BORDERLESS;
 
-#ifdef BUILD_PLATFORM_WIN32
+#if SPIKEY_PLATFORM_WIN32
 		windowFlags |= SDL_WINDOW_VULKAN;
 #else
 #error Platform unsupported!
@@ -492,6 +492,11 @@ namespace Spikey
 			settings.Size.y,
 			windowFlags
 		);
+
+		if (!m_Handle)
+		{
+			Engine::MessageBoxError("Fatal Error", "Failed to create window!");
+		}
 
 		SDL_SetWindowMinimumSize(m_Handle, settings.MinimumSize.x, settings.MinimumSize.y);
 		if (settings.MaximumSize.x > 0 && settings.MaximumSize.y > 0)
@@ -513,7 +518,7 @@ namespace Spikey
 			SDL_SetWindowPosition(m_Handle, settings.Position.x, settings.Position.y);
 		}
 
-#ifdef BUILD_PLATFORM_WIN32
+#ifdef SPIKEY_PLATFORM_WINDOWS
 		SDL_PropertiesID properties = SDL_GetWindowProperties(m_Handle);
 		m_NativeHandle = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 
@@ -542,17 +547,17 @@ namespace Spikey
 			{
 			case SDL_EVENT_QUIT:
 			{
-				Application::Instance->RequestExit();
+				Engine::RequestExit();
 				break;
 			}
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
 			{
 				SDL_WindowID mainWindowID
-					= SDL_GetWindowID(Application::Instance->GetMainWindow()->GetHandle());
+					= SDL_GetWindowID(Engine::MainWindow->GetHandle());
 
 				if (event.window.windowID == mainWindowID)
 				{
-					Application::Instance->RequestExit();
+					Engine::RequestExit();
 				}
 				break;
 			}
@@ -645,7 +650,7 @@ namespace Spikey
 				if (button != Key::Invalid)
 				{
 					s_InputState[button] = 1;
-					Application::Instance->OnMouseButtonDown(button);
+					Application::OnMouseButtonPressed(button);
 				}
 
 				s_CurrentInputDevice = Input::KeyboardAndMouse;
@@ -659,7 +664,7 @@ namespace Spikey
 				if (button != Key::Invalid)
 				{
 					s_InputState[button] = 0;
-					Application::Instance->OnMouseButtonUp(button);
+					Application::OnMouseButtonReleased(button);
 				}
 				break;
 			}
@@ -680,7 +685,7 @@ namespace Spikey
 				if (key != Key::Invalid)
 				{
 					s_InputState[key] = 1;
-					Application::Instance->OnKeyDown(key, mod);
+					Application::OnKeyPressed(key, mod);
 				}
 
 				s_CurrentInputDevice = Input::KeyboardAndMouse;
@@ -694,7 +699,7 @@ namespace Spikey
 				if (key != Key::Invalid)
 				{
 					s_InputState[key] = 0;
-					Application::Instance->OnKeyUp(key);
+					Application::OnKeyReleased(key);
 				}
 
 				break;
@@ -704,13 +709,13 @@ namespace Spikey
 				s_InputState[Key::Mouse_X] = event.motion.xrel;
 				s_InputState[Key::Mouse_Y] = event.motion.yrel;
 
-				Application::Instance->OnMouseMove(event.motion.xrel, event.motion.yrel);
+				Application::OnMouseMove(event.motion.xrel, event.motion.yrel);
 				break;
 			}
 			case SDL_EVENT_MOUSE_WHEEL:
 			{
 				s_InputState[Key::Mouse_Scroll] = event.wheel.x;
-				Application::Instance->OnMouseScroll(event.wheel.x);
+				Application::OnMouseScroll(event.wheel.x);
 				break;
 			}
 			default:
@@ -726,7 +731,7 @@ namespace Spikey
 
 	bool Window::IsMain() const
 	{
-		return Application::Instance->GetMainWindow() == this;
+		return Engine::MainWindow == this;
 	}
 
 	bool Window::IsFullscreen() const

@@ -1,8 +1,8 @@
 #ifndef __TRACY_HPP__
 #define __TRACY_HPP__
 
-#include "../common/TracyColor.hpp"
-#include "../common/TracySystem.hpp"
+#include "common/TracyColor.hpp"
+#include "common/TracySystem.hpp"
 
 #ifndef TracyFunction
 #  define TracyFunction __FUNCTION__
@@ -130,9 +130,9 @@
 
 #include <string.h>
 
-#include "../client/TracyLock.hpp"
-#include "../client/TracyProfiler.hpp"
-#include "../client/TracyScoped.hpp"
+#include "client/TracyLock.hpp"
+#include "client/TracyProfiler.hpp"
+#include "client/TracyScoped.hpp"
 
 #ifndef TRACY_CALLSTACK
 #define TRACY_CALLSTACK 0

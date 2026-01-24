@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Graphics/Texture.h>
-#include <Graphics/Buffer.h>
+#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/Buffer.h>
 
 namespace Spikey {
 

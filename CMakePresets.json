@@ -1,0 +1,35 @@
+{
+  "version": 4,
+  "configurePresets": [
+    {
+      "name": "Game-Dev",
+      "displayName": "Game Development Build",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/Build/${presetName}",
+      "cacheVariables": {
+        "BUILD_TARGET": "Game",
+        "BUILD_SHIPPING": "OFF"
+      }
+    },
+    {
+      "name": "Game-Shipping",
+      "displayName": "Game Shipping Build",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/Build/${presetName}",
+      "cacheVariables": {
+        "BUILD_TARGET": "Game",
+        "BUILD_SHIPPING": "ON"
+      }
+    },
+    {
+      "name": "Editor",
+      "displayName": "Editor Build",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/Build/${presetName}",
+      "cacheVariables": {
+        "BUILD_TARGET": "Editor",
+        "BUILD_SHIPPING": "OFF"
+      }
+    }
+  ]
+}

@@ -1,117 +1,81 @@
-#include <Vulkan/VulkanBackend.h>
-#include <Vulkan/VulkanTools.h>
-#include <Core/Engine.h>
+#define VMA_IMPLEMENTATION
+#include <vulkan/vulkan.h>
+#include <VulkanMemoryAllocator/vk_mem_alloc.h>
 
-#include <spirv_reflect.h>
-#include <VkBootstrap.h>
+#include <Platform/Vulkan/VulkanBackend.h>
+#include <Platform/Vulkan/VulkanTools.h>
+#include <Engine/Core/Engine.h>
+
+#include <VkBootstrap/VkBootstrap.h>
+#include <SPIRV-Reflect/spirv_reflect.h>
 #include <SDL3/SDL_vulkan.h>
 
 #define USE_VULKAN_PIPELINE_CACHE 0
 
 namespace Spikey::Vulkan
 {
-	VulkanDevice::VulkanDevice() 
+	VulkanDevice::VulkanDevice()
 		: m_PipelineStateCache(VK_NULL_HANDLE)
+		, m_DeletionQueue(this)
 	{
-		vkb::InstanceBuilder builder{};
-		auto instance = builder
-			.set_app_name(Application::GetName())
-#ifdef _DEBUG
-			.request_validation_layers(true)
-#endif
-			.use_default_debug_messenger()
-			.require_api_version(1, 4, 0)
-			.build();
-
-		vkb::Instance vkbInstance = instance.value();
-
-		m_Instance = vkbInstance.instance;
-		m_DebugMessenger = vkbInstance.debug_messenger;
-
-		VkPhysicalDeviceVulkan13Features features13{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
-		features13.dynamicRendering = true;
-		features13.synchronization2 = true;
-
-		// VkPhysicalDeviceVulkan12Features features12{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
-		// features12.bufferDeviceAddress = true;
-
-		vkb::PhysicalDeviceSelector selector{ vkbInstance };
-		vkb::PhysicalDevice physicalDevice = selector
-			.set_minimum_version(1, 4)
-			.set_required_features_13(features13)
-			// .set_required_features_12(features12)
-			.prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
-			.select()
-			.value();
-
-		/*
-		std::vector<vkb::CustomQueueDescription> queueDescriptions{};
 		{
-			auto queueFamilyProperties = physicalDevice.get_queue_families();
-			int32 graphicsFamily = -1;
-			int32 computeFamily = -1;
-			int32 transferFamily = -1;
+			vkb::InstanceBuilder builder{};
+			auto instance = builder
+				.set_app_name("Spikey3D Application")
+				.set_engine_name("Spikey3D")
+#ifdef _DEBUG
+				.request_validation_layers(true)
+#endif
+				.use_default_debug_messenger()
+				.require_api_version(1, 4, 0)
+				.build();
 
-			for (int32 i = 0; i < queueFamilyProperties.size(); i++)
+			vkb::Instance vkbInstance = instance.value();
+
+			m_Instance = vkbInstance.instance;
+			m_DebugMessenger = vkbInstance.debug_messenger;
+
+			VkPhysicalDeviceVulkan13Features features13{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
+			features13.dynamicRendering = true;
+			features13.synchronization2 = true;
+
+			VkPhysicalDeviceVulkan12Features features12{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+			features12.timelineSemaphore = true;
+
+			vkb::PhysicalDeviceSelector selector{ vkbInstance };
+			vkb::PhysicalDevice physicalDevice = {};
+
+			auto physicalDeviceResult = selector
+				.set_minimum_version(1, 4)
+				.defer_surface_initialization()
+				.set_required_features_13(features13)
+				.set_required_features_12(features12)
+				.prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
+				.select();
+
+			if (!physicalDeviceResult)
 			{
-				const VkQueueFamilyProperties& props = queueFamilyProperties[i];
-
-				if (props.queueCount > 0)
-				{
-					bool isQueueUsed = false;
-
-					if (props.queueFlags & VK_QUEUE_GRAPHICS_BIT
-						&& graphicsFamily == -1)
-					{
-						graphicsFamily = i;
-						isQueueUsed = true;
-					}
-
-					if (props.queueFlags & VK_QUEUE_COMPUTE_BIT
-						&& !(props.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-						&& computeFamily == -1)
-					{
-						computeFamily = i;
-						isQueueUsed = true;
-					}
-
-					if (props.queueFlags & VK_QUEUE_TRANSFER_BIT
-						&& !(props.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-						&& !(props.queueFlags & VK_QUEUE_COMPUTE_BIT)
-						&& transferFamily == -1)
-					{
-						transferFamily = i;
-						isQueueUsed = true;
-					}
-
-					if (isQueueUsed)
-					{
-						auto& queueDesc = queueDescriptions.emplace_back();
-						queueDesc.index = i;
-						queueDesc.priorities = { 1.0f };
-					}
-				}
+				std::string msg = physicalDeviceResult.error().message();
+				Engine::MessageBoxError("Fatal Error", msg.c_str());
+			}
+			else
+			{
+				physicalDevice = physicalDeviceResult.value();
 			}
 
-			m_GraphicsQueue = new VulkanQueue(graphicsFamily, this);
-
-			if (computeFamily == -1)
-				m_ComputeQueue = m_GraphicsQueue;
-			else
-				m_ComputeQueue = new VulkanQueue(computeFamily, this);
-
-			if (transferFamily == -1)
-				m_TransferQueue = m_ComputeQueue;
-			else
-				m_TransferQueue = new VulkanQueue(transferFamily, this);
-		}
-		*/
-
-		{
 			vkb::DeviceBuilder deviceBuilder{ physicalDevice };
-			//deviceBuilder.custom_queue_setup(queueDescriptions);
+			vkb::Device vkbDevice = {};
 
-			vkb::Device vkbDevice = deviceBuilder.build().value();
+			auto deviceResult = deviceBuilder.build();
+			if (!deviceResult)
+			{
+				std::string msg = deviceResult.error().message();
+				Engine::MessageBoxError("Fatal Error", msg.c_str());
+			}
+			else
+			{
+				vkbDevice = deviceResult.value();
+			}
 
 			m_Device = vkbDevice.device;
 			m_PhysicalDevice = vkbDevice.physical_device;
@@ -119,7 +83,7 @@ namespace Spikey::Vulkan
 			m_GraphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 			m_GraphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 
-			vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_Properties);
+		    vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_Properties);
 		}
 		{
 			VkFenceCreateInfo fenceInfo
@@ -312,6 +276,11 @@ namespace Spikey::Vulkan
 			vkDestroyImageView(m_Device, NullImageViewCube, nullptr);
 		}
 
+		for (int32 i = 0; i < 7; i++)
+		{
+			vkDestroySampler(m_Device, StaticSamplers[i], nullptr);
+		}
+
 		for (auto& [k, v] : m_LayoutCache)
 		{
 			vkDestroyPipelineLayout(m_Device, v.Layout, nullptr);
@@ -331,7 +300,7 @@ namespace Spikey::Vulkan
 		}
 
 		delete MainContext;
-		m_DeletionQueue.ReleaseResources(true, this);
+		m_DeletionQueue.ReleaseResources(true);
 
 		vmaDestroyAllocator(m_Allocator);
 		vkDestroyDevice(m_Device, nullptr);
@@ -341,14 +310,14 @@ namespace Spikey::Vulkan
 
 	GPUTextureRef VulkanDevice::CreateTexture(const TextureDesc& desc)
 	{
-		auto texture = TRefCountPtr<VulkanTexture>::Create(desc);
-		return GPUTextureRef(texture);
+		GPUTextureRef texture = new VulkanTexture(desc, this);
+		return texture;
 	}
 
 	GPUBufferRef VulkanDevice::CreateBuffer(const BufferDesc& desc)
 	{
-		auto buffer = TRefCountPtr<VulkanBuffer>::Create(desc);
-		return GPUBufferRef(buffer);
+		GPUBufferRef buffer = new VulkanBuffer(desc, this);
+		return buffer;
 	}
 
 	GPUSamplerStateRef VulkanDevice::CreateSamplerState(const SamplerStateDesc& desc)
@@ -369,14 +338,14 @@ namespace Spikey::Vulkan
 
 	GPUShaderRef VulkanDevice::CreateShader(std::span<uint8> bytecode, ShaderStage stage)
 	{
-		auto shader = TRefCountPtr<VulkanShader>::Create(bytecode, stage);
-		return GPUShaderRef(shader);
+		GPUShaderRef shader = new VulkanShader(bytecode, stage, this);
+		return shader;
 	}
 
 	GPUPipelineStateRef VulkanDevice::CreatePipelineState(const PipelineStateDesc& desc)
 	{
-		auto pipeline = TRefCountPtr<VulkanPipelineState>::Create(desc);
-		return GPUPipelineStateRef(pipeline);
+		GPUPipelineStateRef pipeline = new VulkanPipelineState(desc, this);
+		return pipeline;
 	}
 
 	GPUSwapchain* VulkanDevice::CreateSwapchain(uint32 width, uint32 height, PixelFormat desiredFormat, SDL_Window* window)
@@ -425,22 +394,22 @@ namespace Spikey::Vulkan
 
 	void VulkanDevice::BeginFrame()
 	{
-		// timit frames in flight to FRAME_BUFFER_COUNT
-		VkFence fence = FrameFences[Engine::FrameCounter % FRAME_BUFFER_COUNT];
+		// limit frames in flight to FRAME_BUFFER_COUNT
+		VkFence fence = FrameFences[Engine::FrameCount % FRAME_BUFFER_COUNT];
 		VK_CHECK(vkWaitForFences(m_Device, 1, &fence, true, 1'000'000'000));
 		VK_CHECK(vkResetFences(m_Device, 1, &fence));
 
 		MainContext->BeginFrame();
 	}
 
-	void VulkanDeletionQueue::ReleaseResources(bool immediate, VulkanDevice* device)
+	void VulkanDeletionQueue::ReleaseResources(bool immediate)
 	{
 		std::scoped_lock lock(m_Mutex);
-		const uint32 framesBeforeDelete = 2;
+		const uint32 framesBeforeDelete = 4;
 
 		while (!m_Entries.empty())
 		{
-			if ((m_Entries.front().FrameNumber + framesBeforeDelete < Engine::FrameCounter) || immediate)
+			if ((m_Entries.front().FrameNumber + framesBeforeDelete < Engine::FrameCount) || immediate)
 			{
 				auto item = m_Entries.front();
 				m_Entries.pop_front();
@@ -448,22 +417,22 @@ namespace Spikey::Vulkan
 				switch (item.StructureType)
 				{
 				case Type::Buffer:
-					vkDestroyBuffer(device->GetDeviceHandle(), (VkBuffer)item.Handle, nullptr);
+					vmaDestroyBuffer(m_Device->GetAllocatorHandle(), (VkBuffer)item.Handle, item.AllocationHandle);
 					break;
 				case Type::Image:
-					vkDestroyImage(device->GetDeviceHandle(), (VkImage)item.Handle, nullptr);
+					vmaDestroyImage(m_Device->GetAllocatorHandle(), (VkImage)item.Handle, item.AllocationHandle);
 					break;
 				case Type::ImageView:
-					vkDestroyImageView(device->GetDeviceHandle(), (VkImageView)item.Handle, nullptr);
+					vkDestroyImageView(m_Device->GetDeviceHandle(), (VkImageView)item.Handle, nullptr);
 					break;
 				case Type::Pipeline:
-					vkDestroyPipeline(device->GetDeviceHandle(), (VkPipeline)item.Handle, nullptr);
+					vkDestroyPipeline(m_Device->GetDeviceHandle(), (VkPipeline)item.Handle, nullptr);
 					break;
 				case Type::Sampler:
-					vkDestroySampler(device->GetDeviceHandle(), (VkSampler)item.Handle, nullptr);
+					vkDestroySampler(m_Device->GetDeviceHandle(), (VkSampler)item.Handle, nullptr);
 					break;
 				case Type::DescriptorPool:
-					vkDestroyDescriptorPool(device->GetDeviceHandle(), (VkDescriptorPool)item.Handle, nullptr);
+					vkDestroyDescriptorPool(m_Device->GetDeviceHandle(), (VkDescriptorPool)item.Handle, nullptr);
 					break;
 				default:
 					assert(0);
@@ -485,7 +454,7 @@ namespace Spikey::Vulkan
 		entry.AllocationHandle = allocation;
 		entry.StructureType = type;
 		entry.Handle = handle;
-		entry.FrameNumber = Engine::FrameCounter;
+		entry.FrameNumber = Engine::FrameCount;
 	}
 
 	VulkanSwapchain::VulkanSwapchain(uint32 width, uint32 height, PixelFormat desiredFormat, SDL_Window* window, VkQueue presentQueue, VulkanDevice* device)
@@ -497,6 +466,7 @@ namespace Spikey::Vulkan
 		m_Height = height;
 		m_Format = desiredFormat;
 
+		CreateSurface();
 		CreateSwapchain();
 	}
 
@@ -581,6 +551,7 @@ namespace Spikey::Vulkan
 			}
 		}
 
+		VkSwapchainKHR oldSwapchain = m_Swapchain;
 		VkSwapchainCreateInfoKHR swapchainInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -596,10 +567,16 @@ namespace Spikey::Vulkan
 			.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 			.presentMode = presentMode,
 			.clipped = VK_TRUE,
-			.oldSwapchain = VK_NULL_HANDLE
+			.oldSwapchain = m_Swapchain
 		};
 
 		VK_CHECK(vkCreateSwapchainKHR(m_Device->GetDeviceHandle(), &swapchainInfo, nullptr, &m_Swapchain));
+
+		if (oldSwapchain != VK_NULL_HANDLE)
+		{
+			vkDestroySwapchainKHR(m_Device->GetDeviceHandle(), oldSwapchain, nullptr);
+			oldSwapchain = VK_NULL_HANDLE;
+		}
 
 		uint32 numImages;
 		VK_CHECK(vkGetSwapchainImagesKHR(m_Device->GetDeviceHandle(), m_Swapchain, &numImages, nullptr));
@@ -643,6 +620,16 @@ namespace Spikey::Vulkan
 		m_ImageAcquired = false;
 	}
 
+	VulkanSwapchain::~VulkanSwapchain()
+	{
+		ReleaseSwapchainResources(true);
+
+		if (m_Surface != VK_NULL_HANDLE)
+		{
+			vkDestroySurfaceKHR(m_Device->GetInstanceHandle(), m_Surface, nullptr);
+		}
+	}
+
 	void VulkanSwapchain::CreateSurface()
 	{
 		if (m_Surface != VK_NULL_HANDLE)
@@ -653,7 +640,7 @@ namespace Spikey::Vulkan
 
 		if (!SDL_Vulkan_CreateSurface(m_WindowHandle, m_Device->GetInstanceHandle(), nullptr, &m_Surface))
 		{
-			assert(false && "Failed to create Vulkan surface");
+			Engine::MessageBoxError("Fatal Error", "Failed to create surface for window!");
 		}
 	}
 
@@ -782,7 +769,7 @@ namespace Spikey::Vulkan
 		context->AddImageBarrier((VulkanTexture*)backBuffer.Texture, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 		context->FlushBarriers();
 		context->GetCmdManager().GetActive()->AddSignalSemaphore(backBuffer.RenderingDoneSemaphore);
-		context->GetCmdManager().SubmitActiveCmd(isPrimary ? m_Device->FrameFences[Engine::FrameCounter % FRAME_BUFFER_COUNT] : VK_NULL_HANDLE);
+		context->GetCmdManager().SubmitActiveCmd(isPrimary ? m_Device->FrameFences[Engine::FrameCount % FRAME_BUFFER_COUNT] : VK_NULL_HANDLE);
 
 		VkPresentInfoKHR presentInfo
 		{
@@ -863,22 +850,40 @@ namespace Spikey::Vulkan
 			.queueFamilyIndex = queueFamilyIndex
 		};
 
+		VkSemaphoreTypeCreateInfo semaphoreTypeInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+			.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE
+		};
+
 		VkSemaphoreCreateInfo semaphoreInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.flags = VK_SEMAPHORE_TYPE_TIMELINE
+			.pNext = &semaphoreTypeInfo
 		};
 
 		VK_CHECK(vkCreateCommandPool(device->GetDeviceHandle(), &poolInfo, nullptr, &m_Pool));
 		VK_CHECK(vkCreateSemaphore(device->GetDeviceHandle(), &semaphoreInfo, nullptr, &m_TrackingSemaphore));
 	}
 
+	VulkanCmdBufferManager::~VulkanCmdBufferManager()
+	{
+		m_ActiveCmdBuffer.reset();
+		m_CmdInFlight.clear();
+		m_FreeCmdBuffers.clear();
+
+		vkDestroyCommandPool(m_Device->GetDeviceHandle(), m_Pool, nullptr);
+		vkDestroySemaphore(m_Device->GetDeviceHandle(), m_TrackingSemaphore, nullptr);
+	}
+
 	void VulkanCmdBufferManager::SubmitActiveCmd(VkFence fence)
 	{
 		if (m_ActiveCmdBuffer)
 		{
-			m_ActiveCmdBuffer->AddSignalSemaphore(m_TrackingSemaphore, m_SubmitCounter);
+			VK_CHECK(vkEndCommandBuffer(m_ActiveCmdBuffer->GetCmdHandle()));
+
 			m_ActiveCmdBuffer->SubmitID = ++m_SubmitCounter;
+			m_ActiveCmdBuffer->AddSignalSemaphore(m_TrackingSemaphore, m_SubmitCounter);
 
 			VkCommandBufferSubmitInfo cmdInfo
 			{
@@ -894,7 +899,7 @@ namespace Spikey::Vulkan
 				.commandBufferInfoCount = 1,
 				.pCommandBufferInfos = &cmdInfo,
 				.signalSemaphoreInfoCount = (uint32)m_ActiveCmdBuffer->SignalSemaphores.size(),
-				.pSignalSemaphoreInfos = m_ActiveCmdBuffer->WaitSemaphores.data()
+				.pSignalSemaphoreInfos = m_ActiveCmdBuffer->SignalSemaphores.data()
 			};
 
 			VK_CHECK(vkQueueSubmit2(m_Queue, 1, &submitInfo, fence));
@@ -922,7 +927,9 @@ namespace Spikey::Vulkan
 					{
 						cmd->SubmitID = 0;
 						VK_CHECK(vkResetCommandBuffer(cmd->GetCmdHandle(), 0));
+
 						m_FreeCmdBuffers.push_back(cmd);
+						m_CmdInFlight.pop_front();
 					}
 					else
 					{
@@ -940,6 +947,15 @@ namespace Spikey::Vulkan
 				m_ActiveCmdBuffer = m_FreeCmdBuffers.back();
 				m_FreeCmdBuffers.pop_back();
 			}
+
+			// begin command recording
+			VkCommandBufferBeginInfo beginInfo
+			{
+				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+			};
+
+			VK_CHECK(vkBeginCommandBuffer(m_ActiveCmdBuffer->GetCmdHandle(), &beginInfo));
 		}
 
 		return m_ActiveCmdBuffer.get();
@@ -952,12 +968,12 @@ namespace Spikey::Vulkan
 
 		if (!m_ImageBarriers.empty())
 		{
-			info.imageMemoryBarrierCount = m_ImageBarriers.size();
+			info.imageMemoryBarrierCount = (uint32)m_ImageBarriers.size();
 			info.pImageMemoryBarriers = m_ImageBarriers.data();
 		}
 		if (!m_BufferBarriers.empty())
 		{
-			info.bufferMemoryBarrierCount = m_BufferBarriers.size();
+			info.bufferMemoryBarrierCount = (uint32)m_BufferBarriers.size();
 			info.pBufferMemoryBarriers = m_BufferBarriers.data();
 		}
 
@@ -1033,7 +1049,7 @@ namespace Spikey::Vulkan
 		{
 			for (uint32 arraySlice = 0; arraySlice < texture->ArraySize(); arraySlice++)
 			{
-				for (int32 mipSlice = 0; mipSlice < texture->MipLevels(); mipSlice++)
+				for (uint32 mipSlice = 0; mipSlice < texture->MipLevels(); mipSlice++)
 				{
 					AddImageBarrier(texture, mipSlice, arraySlice, dstLayout);
 				}
@@ -1047,7 +1063,7 @@ namespace Spikey::Vulkan
 
 		for (uint32 arraySlice = view->Subresources.baseArrayLayer; arraySlice < view->Subresources.layerCount; arraySlice++)
 		{
-			for (int32 mipSlice = view->Subresources.baseMipLevel; mipSlice < view->Subresources.levelCount; mipSlice++)
+			for (uint32 mipSlice = view->Subresources.baseMipLevel; mipSlice < view->Subresources.levelCount; mipSlice++)
 			{
 				AddImageBarrier(vkOwner, mipSlice, arraySlice, dstLayout);
 			}
@@ -1228,7 +1244,7 @@ namespace Spikey::Vulkan
 
 	void VulkanDescriptorBinder::Reset()
 	{
-		auto& pool = Pools[Engine::FrameCounter % FRAME_BUFFER_COUNT];
+		auto& pool = Pools[Engine::FrameCount % FRAME_BUFFER_COUNT];
 		if (pool.Handle != VK_NULL_HANDLE)
 		{
 			VK_CHECK(vkResetDescriptorPool(m_Device->GetDeviceHandle(), pool.Handle, 0));
@@ -1248,7 +1264,7 @@ namespace Spikey::Vulkan
 
 		const auto& descriptorInfo = pipeline->DescriptorInfo;
 		auto cmd = context->GetCmdManager().GetActive();
-		DescriptorPool& pool = Pools[Engine::FrameCounter % FRAME_BUFFER_COUNT];
+		DescriptorPool& pool = Pools[Engine::FrameCount % FRAME_BUFFER_COUNT];
 
 		VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
 		allocInfo.descriptorPool = pool.Handle;
@@ -1543,7 +1559,7 @@ namespace Spikey::Vulkan
 		}
 	}
 
-	VulkanBuffer::VulkanBuffer(const BufferDesc& desc, VulkanDevice& device)
+	VulkanBuffer::VulkanBuffer(const BufferDesc& desc, VulkanDevice* device)
 		: GPUBuffer(desc)
 		, m_Device(device)
 		, m_MappedData(nullptr)
@@ -1586,12 +1602,12 @@ namespace Spikey::Vulkan
 			allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		}
 
-		VK_CHECK(vmaCreateBuffer(m_Device.GetAllocatorHandle(), &bufferInfo, &allocInfo, &m_Buffer,
+		VK_CHECK(vmaCreateBuffer(m_Device->GetAllocatorHandle(), &bufferInfo, &allocInfo, &m_Buffer,
 			&m_Allocation, nullptr));
 
 		if (EnumHasAnyFlags(desc.Flags, BufferFlags::Upload | BufferFlags::ReadBack))
 		{
-			vmaMapMemory(m_Device.GetAllocatorHandle(), m_Allocation, &m_MappedData);
+			vmaMapMemory(m_Device->GetAllocatorHandle(), m_Allocation, &m_MappedData);
 		}
 	}
 
@@ -1616,7 +1632,7 @@ namespace Spikey::Vulkan
 
 	VulkanBuffer::~VulkanBuffer() 
 	{
-		m_Device.GetDeletionQueue().Enqueue(
+		m_Device->GetDeletionQueue().Enqueue(
 			VulkanDeletionQueue::Type::Buffer,
 			m_Buffer,
 			m_Allocation
@@ -1657,11 +1673,14 @@ namespace Spikey::Vulkan
 		{
 		case TextureDimension::Texture2D:
 			imgInfo.imageType = VK_IMAGE_TYPE_2D;
+			break;
 		case TextureDimension::TextureCube:
 			imgInfo.imageType = VK_IMAGE_TYPE_2D;
 			imgInfo.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+			break;
 		case TextureDimension::Texture3D:
 			imgInfo.imageType = VK_IMAGE_TYPE_3D;
+			break;
 		default:
 			assert(0);
 			break;
@@ -1761,7 +1780,7 @@ namespace Spikey::Vulkan
 				if (EnumHasAllFlags(m_Desc.Flags, TextureFlags::PerSliceViews))
 				{
 					m_ViewsPerSlice.resize(m_Desc.Depth);
-					for (int32 slice = 0; slice < m_Desc.Depth; slice++)
+					for (uint32 slice = 0; slice < m_Desc.Depth; slice++)
 					{
 						m_ViewsPerSlice[slice].Init(m_Device, this, VK_IMAGE_VIEW_TYPE_2D, m_Desc.Format, 0, m_Desc.MipLevels, slice, 1);
 					}
@@ -1771,7 +1790,7 @@ namespace Spikey::Vulkan
 			{
 				m_ViewsPerSlice.resize(m_Desc.ArraySize);
 
-				for (int32 slice = 0; slice < m_Desc.ArraySize; slice++)
+				for (uint32 slice = 0; slice < m_Desc.ArraySize; slice++)
 				{
 					m_ViewsPerSlice[slice].Init(m_Device, this, VK_IMAGE_VIEW_TYPE_2D, m_Desc.Format, 0, m_Desc.MipLevels, slice, 1);
 				}
@@ -1801,12 +1820,12 @@ namespace Spikey::Vulkan
 			if (EnumHasAllFlags(m_Desc.Flags, TextureFlags::PerMipViews))
 			{
 				m_ViewsPerMip.resize(m_Desc.ArraySize);
-				for (int32 arrayIndex = 0; arrayIndex < m_Desc.ArraySize; arrayIndex++)
+				for (uint32 arrayIndex = 0; arrayIndex < m_Desc.ArraySize; arrayIndex++)
 				{
 					auto& slice = m_ViewsPerMip[arrayIndex];
 					slice.resize(m_Desc.MipLevels);
 
-					for (int32 mip = 0; mip < m_Desc.MipLevels; mip++)
+					for (uint32 mip = 0; mip < m_Desc.MipLevels; mip++)
 					{
 						slice[mip].Init(m_Device, this, VK_IMAGE_VIEW_TYPE_2D, m_Desc.Format, mip, 1, arrayIndex, 1);
 					}
@@ -2043,7 +2062,7 @@ namespace Spikey::Vulkan
 				if (!shader)
 					return;
 
-				VulkanShader* vkShader = static_cast<VulkanShader*>(vkShader);
+				VulkanShader* vkShader = static_cast<VulkanShader*>(shader);
 				auto&         descriptorInfo = vkShader->DescriptorInfo;
 
 				for (uint32 i = 0; i < descriptorInfo.DescriptorCount; i++)

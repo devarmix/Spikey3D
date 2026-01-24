@@ -1,13 +1,11 @@
 #pragma once
 
-#include <Graphics/Texture.h>
-#include <Graphics/GraphicsTypes.h>
-#include <Graphics/Shader.h>
-#include <Graphics/Buffer.h>
-#include <Graphics/Mesh.h>
-#include <Core/Window.h>
-
-#include <ImGui/imgui.h>
+#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/GraphicsTypes.h>
+#include <Engine/Graphics/Shader.h>
+#include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/Mesh.h>
+#include <Engine/Core/Window.h>
 
 namespace Spikey 
 {
@@ -63,9 +61,9 @@ namespace Spikey
 		{
 		}
 
+	public:
 		virtual ~GPUSwapchain() = default;
 
-	public:
 		uint32 GetWidth() const
 		{
 			return m_Width; 
