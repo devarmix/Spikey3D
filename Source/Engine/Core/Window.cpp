@@ -495,7 +495,7 @@ namespace Spikey
 
 		if (!m_Handle)
 		{
-			Engine::MessageBoxError("Fatal Error", "Failed to create window!");
+			Engine::MessageBoxError("Fatal Error", "Failed to create a window!");
 		}
 
 		SDL_SetWindowMinimumSize(m_Handle, settings.MinimumSize.x, settings.MinimumSize.y);
@@ -641,6 +641,7 @@ namespace Spikey
 				default:
 					break;
 				}
+				break;
 			}
 			case SDL_EVENT_MOUSE_BUTTON_DOWN:
 			{

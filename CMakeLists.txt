@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 option(USE_TRACY_PROFILER "Enable Tracy profiler" ON)
-option(USE_AVX2 "Enable AVX2" ON)
+option(USE_AVX2 "Enable AVX2" OFF)
 
 project(Spikey3D-Engine)
 set(CMAKE_CXX_STANDARD 20)

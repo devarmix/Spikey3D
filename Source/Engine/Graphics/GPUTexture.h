@@ -145,7 +145,7 @@ namespace Spikey
 		uint32           SampleCount = 1;
 		PixelFormat      Format = PixelFormat::Unknown;
 		TextureDimension Dimension = TextureDimension::Texture2D;
-		TextureFlags     Flags = TextureFlags::None;
+		TextureFlags     Flags = TextureFlags::ShaderResource;
 	};
 
 	class GPUTextureView
@@ -179,10 +179,14 @@ namespace Spikey
 	protected:
 		GPUTexture(const TextureDesc& desc) 
 			: m_Desc(desc)
+			, m_ResidentMipLevels(0)
 		{
 		}
 
 		TextureDesc m_Desc;
+
+		// mip levels already uploaded to gpu
+		uint32 m_ResidentMipLevels;
 
 	public:
 		virtual void*           GetNative() const = 0;
@@ -208,6 +212,27 @@ namespace Spikey
 		{ 
 			return m_Desc; 
 		}
+
+		uint32 ResidentMipLevels() const
+		{
+			return m_ResidentMipLevels;
+		}
+
+		bool HasResidentMip() const
+		{
+			return m_ResidentMipLevels > 0;
+		}
+
+		uint32 HighestResidentMipIndex() const
+		{
+			return MipLevels() - ResidentMipLevels();
+		}
+
+		void SetResidentMipLevels(uint32 count);
+		void GetMipSize(uint32 mipIndex, uint32& width, uint32& height, uint32& depth);
+
+	protected:
+		virtual void OnResidentMipsChange() = 0;
 	};
 
 	enum class SamplerFilter : uint8

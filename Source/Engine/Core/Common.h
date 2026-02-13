@@ -11,10 +11,11 @@
 #include <map>
 #include <unordered_map>
 #include <stack>
-#include <filesystem>
+#include <semaphore>
 #include <type_traits>
 #include <assert.h>
-#include <Engine/Core/Log.h>
+// #include <Engine/Core/Log.h>
+// #include <Engine/Core/Time.h>
 
 #if WITH_PROFILER
 #include <Tracy/Tracy.hpp>
@@ -59,6 +60,16 @@ template<typename T>
 inline bool EnumHasAnyFlags(T flags, T contains)
 {
 	return ((std::underlying_type_t<T>)flags & (std::underlying_type_t<T>)contains) != 0;
+}
+
+template<typename T>
+inline void ArrayRemoveAt(std::vector<T>& array, uint32 index)
+{
+	if (array.size() > 1)
+	{
+		array[index] = std::move(array.back());
+	}
+	array.pop_back();
 }
 
 // ------------ common types ---------------

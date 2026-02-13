@@ -26,6 +26,7 @@ list(APPEND SPIKEY_SOURCE
 
     "${THIRD_PARTY_DIR}/SPIRV-Reflect/spirv_reflect.cpp"
     "${THIRD_PARTY_DIR}/VkBootstrap/VkBootstrap.cpp"
+	"${THIRD_PARTY_DIR}/EnkiTS/TaskScheduler.cpp"
 )
 
 add_executable(Spikey3D ${SPIKEY_SOURCE})
@@ -39,7 +40,7 @@ else()
 endif()
 
 set_target_properties(Spikey3D PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${BINARIES_DIR}/${BUILD_TARGET}")
-target_compile_options(Spikey3D PRIVATE "/utf-8")
+target_compile_options(Spikey3D PRIVATE /utf-8)
 
 if (MSVC)
     set_property(TARGET Spikey3D PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Release>:Release>")
@@ -86,6 +87,6 @@ target_compile_definitions(
 
     WITH_EDITOR=$<STREQUAL:${BUILD_TARGET},Editor>
     BUILD_SHIPPING=$<BOOL:${BUILD_SHIPPING}>
-    WITH_PROFILER=USE_TRACY_PROFILER
-    SPIKEY_PLATFORM_WIN32=WIN32
+    WITH_PROFILER=$<BOOL:USE_TRACY_PROFILER>
+    SPIKEY_PLATFORM_WIN32=$<BOOL:WIN32>
 )

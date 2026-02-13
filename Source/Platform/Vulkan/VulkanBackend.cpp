@@ -17,6 +17,7 @@ namespace Spikey::Vulkan
 	VulkanDevice::VulkanDevice()
 		: m_PipelineStateCache(VK_NULL_HANDLE)
 		, m_DeletionQueue(this)
+		, m_UploadManager(this)
 	{
 		{
 			vkb::InstanceBuilder builder{};
@@ -300,6 +301,7 @@ namespace Spikey::Vulkan
 		}
 
 		delete MainContext;
+		m_UploadManager.Release();
 		m_DeletionQueue.ReleaseResources(true);
 
 		vmaDestroyAllocator(m_Allocator);
@@ -400,6 +402,7 @@ namespace Spikey::Vulkan
 		VK_CHECK(vkResetFences(m_Device, 1, &fence));
 
 		MainContext->BeginFrame();
+		m_UploadManager.BeginGeneration(Engine::FrameCount);
 	}
 
 	void VulkanDeletionQueue::ReleaseResources(bool immediate)
@@ -839,6 +842,140 @@ namespace Spikey::Vulkan
 		SignalSemaphores.push_back(semaphoreInfo);
 	}
 
+	VulkanUploadManager::VulkanUploadManager(VulkanDevice* device)
+		: m_Device(device)
+		, m_CurrentGeneration(0)
+		, m_CurrentOffset(0)
+		, m_CurrentPage()
+	{
+	}
+
+	VulkanUploadManager::Allocation VulkanUploadManager::Allocate(uint64 size, uint64 align)
+	{
+		const uint64 pageSize = std::max(size, VULKAN_DEFAULT_UPLOAD_PAGE_SIZE);
+		const uint64 alignedSize = VmaAlignUp(size, align);
+
+		m_CurrentOffset = VmaAlignUp(m_CurrentOffset, align);
+
+		// Check if there is enough space for that chunk of the data in the current page
+		if (m_CurrentPage && m_CurrentOffset + alignedSize > m_CurrentPage->Size)
+			m_CurrentPage = nullptr;
+
+		if (m_CurrentPage == nullptr)
+		{
+			for (int32 i = 0; i < m_FreePages.size(); i++)
+			{
+				UploadPage* page = m_FreePages[i];
+				if (page->Size == pageSize)
+				{
+					ArrayRemoveAt(m_FreePages, i);
+					m_CurrentPage = page;
+					break;
+				}
+			}
+
+			if (m_CurrentPage == nullptr)
+				m_CurrentPage = new UploadPage(m_Device, pageSize);
+
+			assert(m_CurrentPage->Buffer);
+			m_UsedPages.push_back(m_CurrentPage);
+			m_CurrentOffset = 0;
+		}
+
+		m_CurrentPage->LastGen = m_CurrentGeneration;
+		Allocation result
+		{
+			(uint8*)m_CurrentPage->Mapped + m_CurrentOffset,
+			m_CurrentOffset,
+			size,
+			m_CurrentPage->Buffer,
+			m_CurrentGeneration
+		};
+
+		m_CurrentOffset += size;
+		return result;
+	}
+
+	VulkanUploadManager::Allocation VulkanUploadManager::Upload(const void* data, uint64 size, uint64 align)
+	{
+		auto allocation = Allocate(size, align);
+		memcpy(allocation.Mapped, data, size);
+		return allocation;
+	}
+
+	void VulkanUploadManager::BeginGeneration(uint64 generation)
+	{
+		// Restore ready pages to be reused
+		for (int32 i = 0; !m_UsedPages.empty() && i < m_UsedPages.size(); i++)
+		{
+			auto page = m_UsedPages[i];
+			if (page->LastGen + VULKAN_UPLOAD_PAGE_GEN_TIMEOUT < generation)
+			{
+				ArrayRemoveAt(m_UsedPages, i);
+				i--;
+				m_FreePages.push_back(page);
+			}
+		}
+
+		// remove old pages
+		for (int32 i = m_FreePages.size() - 1; i >= 0 && !m_FreePages.empty(); i--)
+		{
+			auto page = m_FreePages[i];
+			if (page->LastGen + VULKAN_UPLOAD_PAGE_GEN_TIMEOUT + VULKAN_UPLOAD_PAGE_NOT_USED_FRAME_TIMEOUT < generation)
+			{
+				ArrayRemoveAt(m_FreePages, i);
+				i--;
+				delete page;
+			}
+		}
+
+		m_CurrentGeneration = generation;
+	}
+
+	void VulkanUploadManager::Release()
+	{
+		m_FreePages.insert(m_FreePages.end(),
+			std::make_move_iterator(m_UsedPages.begin()),
+			std::make_move_iterator(m_UsedPages.end()));
+
+		for (auto page : m_FreePages)
+		{
+			delete page;
+		}
+	}
+
+	VulkanUploadManager::UploadPage::UploadPage(VulkanDevice* device, uint64 size)
+		: m_Device(device)
+		, LastGen(0)
+		, Size(size)
+	{
+		VkBufferCreateInfo bufferInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.size = size,
+			.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+		};
+
+		VmaAllocationCreateInfo allocCreateInfo
+		{
+			.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+			.usage = VMA_MEMORY_USAGE_AUTO
+		};
+
+		VmaAllocationInfo allocInfo;
+		vmaCreateBuffer(m_Device->GetAllocatorHandle(), &bufferInfo, &allocCreateInfo, &Buffer, &Allocation, &allocInfo);
+		Mapped = allocInfo.pMappedData;
+		assert(Mapped);
+	}
+
+	VulkanUploadManager::UploadPage::~UploadPage()
+	{
+		vmaDestroyBuffer(m_Device->GetAllocatorHandle(), Buffer, Allocation);
+		Buffer = VK_NULL_HANDLE;
+		Allocation = VK_NULL_HANDLE;
+		Mapped = nullptr;
+	}
+
 	VulkanCmdBufferManager::VulkanCmdBufferManager(VkQueue queue, uint32 queueFamilyIndex, VulkanDevice* device)
 		: m_Device(device)
 		, m_Queue(queue)
@@ -1133,6 +1270,33 @@ namespace Spikey::Vulkan
 		copyInfo.pRegions = &copy;
 
 		vkCmdCopyImage2(cmd->GetCmdHandle(), &copyInfo);
+	}
+
+	void VulkanCommandContext::UpdateTexture(GPUTexture* texture, uint32 arraySlice, uint32 mipIndex, const void* data, uint32 rowPitch, uint32 slicePitch)
+	{
+		assert(texture && data);
+
+		VulkanTexture* vkTex = static_cast<VulkanTexture*>(texture);
+		AddImageBarrier(vkTex, mipIndex, arraySlice, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		FlushBarriers();
+
+		auto allocation = m_Device->GetUploadManager().Upload(data, slicePitch, 512);
+
+		uint32 mipWidth, mipHeight, mipDepth;
+		texture->GetMipSize(mipIndex, mipWidth, mipHeight, mipDepth);
+
+		VkBufferImageCopy bufferCopyRegion{};
+		bufferCopyRegion.bufferOffset = allocation.Offset;
+		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		bufferCopyRegion.imageSubresource.mipLevel = mipIndex;
+		bufferCopyRegion.imageSubresource.baseArrayLayer = arraySlice;
+		bufferCopyRegion.imageSubresource.layerCount = 1;
+		bufferCopyRegion.imageExtent.width = mipWidth;
+		bufferCopyRegion.imageExtent.height = mipHeight;
+		bufferCopyRegion.imageExtent.depth = mipDepth;
+
+		auto cmdBuffer = m_CmdBufferManager.GetActive();
+		vkCmdCopyBufferToImage(cmdBuffer->GetCmdHandle(), allocation.Buffer, vkTex->GetImageHandle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferCopyRegion);
 	}
 
 	void VulkanCommandContext::CopyBuffer(GPUBuffer* src, uint64 srcOffset, GPUBuffer* dst, uint64 dstOffset, uint64 copySize)

@@ -83,7 +83,7 @@ namespace std
 {
 	template<> struct hash<Spikey::Vulkan::VulkanPSOLayoutHash>
 	{
-		constexpr size_t operator()(const Spikey::Vulkan::VulkanPSOLayoutHash& key) const
+		constexpr uint64 operator()(const Spikey::Vulkan::VulkanPSOLayoutHash& key) const
 		{
 			return key.Hash;
 		}
@@ -148,6 +148,59 @@ namespace Spikey::Vulkan
 		void EnqueueGeneric(Type type, uint64 handle, VmaAllocation allocation);
 	};
 
+	constexpr uint64 VULKAN_DEFAULT_UPLOAD_PAGE_SIZE = (4 * 1024 * 1024); // 4MB
+	constexpr uint32 VULKAN_UPLOAD_PAGE_GEN_TIMEOUT = 3;
+	constexpr uint32 VULKAN_UPLOAD_PAGE_NOT_USED_FRAME_TIMEOUT = 60;
+
+	class VulkanUploadManager
+	{
+	public:
+		struct Allocation
+		{
+			void* Mapped;
+			uint64 Offset;
+			uint64 Size;
+			VkBuffer Buffer;
+			uint64 Generation;
+		};
+
+	private:
+		class UploadPage
+		{
+		public:
+			uint64 LastGen;
+			uint64 Size;
+			void* Mapped;
+			VkBuffer Buffer = VK_NULL_HANDLE;
+			VmaAllocation Allocation = VK_NULL_HANDLE;
+
+		public:
+			UploadPage(VulkanDevice* device, uint64 size);
+			~UploadPage();
+
+		private:
+			VulkanDevice* m_Device;
+		};
+
+		VulkanDevice* m_Device;
+		UploadPage* m_CurrentPage;
+		uint64 m_CurrentOffset;
+		uint64 m_CurrentGeneration;
+		std::vector<UploadPage*> m_FreePages;
+		std::vector<UploadPage*> m_UsedPages;
+
+	public:
+		VulkanUploadManager(VulkanDevice* device);
+
+	public:
+		Allocation Allocate(uint64 size, uint64 align);
+		Allocation Upload(const void* data, uint64 size, uint64 align);
+
+	public:
+		void BeginGeneration(uint64 generation);
+		void Release();
+	};
+
 	class VulkanDevice : public GPUDevice
 	{
 	public:
@@ -186,6 +239,11 @@ namespace Spikey::Vulkan
 			return m_DeletionQueue;
 		}
 
+		VulkanUploadManager& GetUploadManager()
+		{
+			return m_UploadManager;
+		}
+
 		virtual GPUTextureRef CreateTexture(const TextureDesc& desc) override;
 		virtual GPUBufferRef CreateBuffer(const BufferDesc& desc) override;
 		virtual GPUSamplerStateRef CreateSamplerState(const SamplerStateDesc& desc) override;
@@ -213,6 +271,7 @@ namespace Spikey::Vulkan
 		VkDevice m_Device;
 		VmaAllocator m_Allocator;
 		VulkanDeletionQueue m_DeletionQueue;
+		VulkanUploadManager m_UploadManager;
 		VkPipelineCache m_PipelineStateCache;
 
 		std::mutex m_LayoutCacheLock;
@@ -349,7 +408,7 @@ namespace Spikey::Vulkan
 		std::vector<TSharedPtr<VulkanCommandBuffer>> m_FreeCmdBuffers;
 	};
 
-	class VulkanCommandContext : public GPUCommandContext
+	class VulkanCommandContext final : public GPUCommandContext
 	{
 	public:
 		VulkanCommandContext(VkQueue queue, uint32 queueIndex, VulkanDevice* device)
@@ -363,6 +422,7 @@ namespace Spikey::Vulkan
 		{
 		}
 
+		virtual void UpdateTexture(GPUTexture* texture, uint32 arraySlice, uint32 mipIndex, const void* data, uint32 rowPitch, uint32 slicePitch) override;
 		virtual void CopyTexture(GPUTexture* src, GPUTexture* dst, const TextureCopyInfo& info) override;
 		virtual void CopyBuffer(GPUBuffer* src, uint64 srcOffset, GPUBuffer* dst, uint64 dstOffset, uint64 copySize) override;
 		virtual void FlushBarriers() override;

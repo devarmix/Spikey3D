@@ -4,17 +4,17 @@
 
 namespace Spikey 
 {
-	class RefCounted 
+	class RefCounted
 	{
 	public:
 		virtual ~RefCounted() = default;
 
-		virtual uint32 AddRef() const 
+		virtual uint32 AddReference() const 
 		{
 			return ++m_Counter;
 		}
 
-		virtual uint32 Release() const 
+		virtual uint32 ReleaseReference() const 
 		{
 			uint32 count = --m_Counter;
 			if (count == 0)

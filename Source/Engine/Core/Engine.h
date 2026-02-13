@@ -3,6 +3,7 @@
 #include <Engine/Graphics/GPUDevice.h>
 #include <Engine/Core/Input.h>
 #include <Engine/Core/Window.h>
+#include <EnkiTS/TaskScheduler.h>
 
 namespace Spikey
 {
@@ -28,11 +29,19 @@ namespace Spikey
 	class Engine
 	{
 	public:
-		static uint64 FrameCount;
-		static Window* MainWindow;
-		static GPUDevice* GraphicsDevice;
-		static bool IsRequestingExit;
-		static int32 ExitCode;
+		static uint64               FrameCount;
+		static Window*              MainWindow;
+		static GPUDevice*           GraphicsDevice;
+		static enki::TaskScheduler* TaskScheduler;
+
+		static bool                 IsRequestingExit;
+		static int32                ExitCode;
+
+#if WITH_EDITOR
+		static std::filesystem::path ProjectCacheFolder;
+#endif
+
+		static std::filesystem::path ProjectContentFolder;
 
 	public:
 		static int32 Main(int32 argc, char* argv[]);

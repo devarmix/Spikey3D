@@ -1,11 +1,12 @@
 #pragma once
 
-#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/GPUTexture.h>
 #include <Engine/Graphics/GraphicsTypes.h>
-#include <Engine/Graphics/Shader.h>
-#include <Engine/Graphics/Buffer.h>
-#include <Engine/Graphics/Mesh.h>
+#include <Engine/Graphics/GPUShader.h>
+#include <Engine/Graphics/GPUBuffer.h>
 #include <Engine/Core/Window.h>
+
+#include <ThirdParty/ConcurrentQueue/concurrentqueue.h>
 
 namespace Spikey 
 {
@@ -33,6 +34,7 @@ namespace Spikey
 	public:
 		virtual ~GPUCommandContext() = default;
 
+		virtual void UpdateTexture(GPUTexture* texture, uint32 arraySlice, uint32 mipIndex, const void* data, uint32 rowPitch, uint32 slicePitch) = 0;
 		virtual void CopyTexture(GPUTexture* src, GPUTexture* dst, const TextureCopyInfo& info) = 0;
 		virtual void CopyBuffer(GPUBuffer* src, uint64 srcOffset, GPUBuffer* dst, uint64 dstOffset, uint64 copySize) = 0;
 		virtual void FlushBarriers() = 0;
@@ -84,8 +86,65 @@ namespace Spikey
 		virtual GPUTexture* GetBackBuffer() = 0;
 	};
 
+	class GPUTask
+	{
+	public:
+		enum class State
+		{
+			Created,
+			Queued,
+			Canceled,
+			Failed,
+			Finished
+		};
+
+	protected:
+		State m_State = State::Created;
+
+	public:
+		virtual ~GPUTask() = default;
+
+		void Enqueue();
+		void Execute(GPUCommandContext* context);
+
+		State GetState() const
+		{
+			return m_State;
+		}
+
+	protected:
+		virtual bool OnExecute(GPUCommandContext* context) = 0;
+	};
+
+	class GPUTaskManager
+	{
+		friend GPUTask;
+
+	private:
+		struct QueueSettings : public moodycamel::ConcurrentQueueDefaultTraits
+		{
+			static const size_t BLOCK_SIZE = 256;
+		};
+
+		moodycamel::ConcurrentQueue<GPUTask*, QueueSettings> m_Queue;
+
+	public:
+		GPUTaskManager()
+		{
+		}
+
+		void FrameBegin();
+		void Dispose();
+	};
+
 	class GPUDevice
 	{
+	private:
+		GPUTaskManager m_TaskManager;
+
+	public:
+		static GPUDevice* Instance;
+
 	public:
 		virtual ~GPUDevice() = default;
 
@@ -99,5 +158,10 @@ namespace Spikey
 
 		virtual void BeginFrame() = 0;
 		virtual void WaitGPUIdle() = 0;
+
+		GPUTaskManager& GetTaskManager()
+		{
+			return m_TaskManager;
+		}
 	};
 }

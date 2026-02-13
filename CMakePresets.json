@@ -6,6 +6,7 @@
       "displayName": "Game Development Build",
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/Build/${presetName}",
+      "architecture": "x64",
       "cacheVariables": {
         "BUILD_TARGET": "Game",
         "BUILD_SHIPPING": "OFF"
@@ -16,6 +17,7 @@
       "displayName": "Game Shipping Build",
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/Build/${presetName}",
+      "architecture": "x64",
       "cacheVariables": {
         "BUILD_TARGET": "Game",
         "BUILD_SHIPPING": "ON"
@@ -26,6 +28,7 @@
       "displayName": "Editor Build",
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/Build/${presetName}",
+      "architecture": "x64",
       "cacheVariables": {
         "BUILD_TARGET": "Editor",
         "BUILD_SHIPPING": "OFF"

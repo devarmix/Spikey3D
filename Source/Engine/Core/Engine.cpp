@@ -43,6 +43,7 @@ namespace Spikey
 			.MinimumSize = Vec2(100, 100)
 		};
 
+		SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD);
 		Log::Init();
 
 		MainWindow = new Window(windowSettings);
@@ -114,7 +115,7 @@ namespace Spikey
 
 	bool Engine::IsEditor()
 	{
-#ifdef SPIKEY_EDITOR
+#if WITH_EDITOR
 		return true;
 #else
 		return false;
